@@ -1,8 +1,14 @@
+
+
+
+
+
+
 import kernels, viz
 from agents import Agent, Mothership
 from worlds import World
 
-import configparser
+import configparser, random
 
 
 if __name__ == '__main__':
@@ -14,7 +20,18 @@ if __name__ == '__main__':
 
     ## Initialization
     # Using expected setup with four "daughter ships" and one "mother ship"
-    agent_list = [Agent()] * 4 + [Mothership()]
+    agent_list = [
+                    Agent(
+                        x=(random.random()-0.5) * config['init'].getfloat('spread') * 2,
+                        y=(random.random()-0.5) * config['init'].getfloat('spread') * 2
+                        ) \
+                for i in range(4)] \
+                + [
+                    Mothership(
+                        x=(random.random()-0.5) * config['init'].getfloat('spread') * 2,
+                        y=(random.random()-0.5) * config['init'].getfloat('spread') * 2
+                    )
+                ]
     world = World(agent_list)
 
     viz.init()

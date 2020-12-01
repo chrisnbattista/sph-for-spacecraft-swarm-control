@@ -2,6 +2,15 @@
 
 
 
+
+
+import numpy as np
+
+
+
+
+
+
 class World:
     '''
     Stores the world state and provides convenience functions to update agents.
@@ -13,15 +22,29 @@ class World:
         self.agent_list = agent_list
         self.state = {
             't': t,
-            'positions': self.get_positions()
+            'positions': self.get_positions_dict()
         }
 
-    def get_positions(self):
+
+    def get_positions_dict(self):
         '''
         Return a dictionary with all agent positions.
         '''
 
-        pos_dict = {a.id: (a.state['x'], a.state['y']) for a in self.agent_list}
+        return {a.id: (a.state['x'], a.state['y']) for a in self.agent_list}
+
+
+    def get_positions_array(self):
+        '''
+        Return a NumPy dictionary with all agent positions.
+        '''
+
+        self.agent_list.sort(key=lambda x: x.id)
+        return np.array([
+            np.vectorize(lambda x: x.state['x'])(self.agent_list),
+            np.vectorize(lambda x: x.state['y'])(self.agent_list)
+        ]).T
+
 
     def update(self, time):
         '''
