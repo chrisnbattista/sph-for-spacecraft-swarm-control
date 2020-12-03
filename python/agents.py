@@ -18,6 +18,11 @@ class Agent:
             'y': y,
             'u': u,
             'v': v
+            # gyro, other sensors - accel, ang vel etc
+            # record state history
+            # sensor data about other satellites
+
+            # target x, y
         }
 
         self.props = {
