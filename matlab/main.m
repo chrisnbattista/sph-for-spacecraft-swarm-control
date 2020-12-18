@@ -23,29 +23,35 @@ param = struct(...
 %The groups of vehicle, obstacles, and reduced density particles
 %(dimensional parameters)
 group_conf = struct(...
-'num_veh',{[4 5]},... % Array containing the number of vehicles in each group
-'veh_init',struct('x',{[2.5 18]},... %initial positions for the veh. groups
-                  'y',{[7 7]},...
-                  'z',{[0 0]},...
-                  'u',{[0.1 0.1]},... %initial velocities for the veh. groups
-                  'v',{[-0.1 -.1]},...
-                  'w',{[0 0]}),...
-'veh_h',{[1 1]},... % Smoothing width for each group
-'veh_limits',struct('vmin',{[3 0]},... %limits for speed and acceleration
-                    'vmax',{[6 5]},...
-                    'turning_radius',{.25*[1 1]}),...
-'num_obs',{0},...    % total number of obstacle particles
-'obs_h',{.6*[1 1]},...    % .5*size of obstacle particles
-'obs_init',struct('x',{[5.5 7.5]},... %positions for the obstacles
-                  'y',{[4 6]},...
-                  'z',{[0 0]}),...
+'num_veh',{15},... % Array containing the number of vehicles in each group
+'veh_init',struct('x',{0},... %initial positions for the veh. groups
+                  'y',{0},...
+                  'z',{0},...
+                  'u',{0},... %initial velocities for the veh. groups
+                  'v',{0},...
+                  'w',{0}),...
+'veh_h',{2},... % Smoothing width for each group
+'veh_limits',struct('vmin',{3},... %limits for speed and acceleration
+                    'vmax',{6},...
+                    'turning_radius',{.1}),...
+'num_obs',{5},...    % total number of obstacle particles
+'obs_h',{[2 2 2 2 2 2]},...    % .5*size of obstacle particles
+'obs_init',struct('x',{[7 12 16 9 22]},... %positions for the obstacles
+                  'y',{[0 4 2 -2 -6]},... - SYNC WITH OBX
+                  'z',{[0 0 0 0 0 0]}),...- SYNC WITH OBX
 'num_rd',{0},...     % total number of reduced density particles
-'rd_group',{[1 2]},...% which group does each red. density particle belong to?
+'rd_group',{1},...% which group does each red. density particle belong to?
 ...                  % group number corresponds to array index for num_veh,
 ...                  % 0 means not active
-'rd_h',{10*[1 1]},...
-'num_loiter',{0},...     % total number of loiter circles
-'loiter_group',{[1 2]}...% which group does each loiter circle belong to?
+'rd_init',struct('x',{0},... %initial positions for the rd 
+                  'y',{0},...
+                  'z',{0},...
+                  'u',{0},... %initial velocities for the rd
+                  'v',{0},...
+                  'w',{0}),...
+'rd_h',{30},...
+'num_loiter',{1},...     % total number of loiter circles
+'loiter_group',{1}...% which group does each loiter circle belong to?
 ...                  % group number corresponds to array index for num_veh,
 ...                  % 0 means not active
 );
@@ -71,16 +77,22 @@ t0=SPH.get_time();tf=100;
 for t=t0:SPH.get_dt():tf-SPH.get_dt()
     
     %loiter circle locations:
-    lx = [12 3; ... %first loiter circle position [x y]
-          25 5]; %second loiter circle position [x y]
+    lx = [28 0]; % loiter circle position [x y]
+      
+    obx = [7 0; ...
+           12 4; ...
+           16 2; ...
+            9 -2; ...
+            22 -6; ...
+    ] % SYNC WITH PARAMS
       
     %loiter circle radii
     if group_conf.num_loiter>0
         if SPH.get_time()<15
-            lR=[9 2]; %loiter circle radii
+            lR=[5]; %loiter circle radii
         else
-            %change the loiter circle radii at each time step
-            lR=[2.5+cos((SPH.get_time()-40)/2) 3-cos(SPH.get_time()-40)];
+            %change the loiter circle radii at each time step - DISABLED
+            %%lR=[2.5+cos((SPH.get_time()-40)/2) 3-cos(SPH.get_time()-40)];
 
             %update the SPH properties
             group_conf.veh_h=2*lR.*sin(pi./group_conf.num_veh);
@@ -91,8 +103,7 @@ for t=t0:SPH.get_dt():tf-SPH.get_dt()
     end
     
     %reduced density targets for the vehicles:
-    rdx = [12 3; ... %first rd position [x y]
-          25 5]; %second rd position [x y]
+    rdx = [28 0] ... %first rd position [x y]
     
     %take an SPH timestep
     SPH=SPH.sph_sim_step(rdx,lx,lR);
@@ -110,7 +121,7 @@ for t=t0:SPH.get_dt():tf-SPH.get_dt()
     
     %plot
     if SPH.get_time()>=plott-SPH.get_dt()/10
-        plot_veh(1,SPH,x,y,trackt,lx)
+        plot_veh(1,SPH,x,y,trackt,lx, obx)
         plott=plott+plotdt;
         
 %         %compute/plot the minimum distance between vehicles in each group:

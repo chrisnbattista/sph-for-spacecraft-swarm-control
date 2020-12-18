@@ -1,4 +1,4 @@
-function plot_veh(h,SPH,x,y,t,lx)
+function plot_veh(h,SPH,x,y,t,lx, obx)
 % function plot_veh(h)
 %
 % Plot the vehicle and attractor locations
@@ -9,6 +9,7 @@ function plot_veh(h,SPH,x,y,t,lx)
 % x,y       the paths of the vehicles
 % t         vector of times corresponding to the points in x and y
 % lx        loiter circle location [x(:,1) y(:,1)]
+% obx       obstacle locations [x y]
 
 %what time range should be used for the track?
 t_range=3;
@@ -29,7 +30,12 @@ plot(x(end-SPH.get_nrd+1:end),y(end-SPH.get_nrd+1:end),'gx','linewidth',2)
 
 %loiter circles:
 if exist('lx') & SPH.get_group_conf.num_loiter>0
-    plot(lx(:,1),lx(:,2),'kd','linewidth',1,'markersize',6)
+    plot(lx(:,1),lx(:,2),'ko','linewidth',1,'markersize',6)
+end
+
+%obstacles:
+if exist('obx') & SPH.get_group_conf.num_obs>0
+    plot(obx(:,1),obx(:,2),'k*','linewidth',1,'markersize',15)
 end
 
 % plot(x',y','k')
@@ -49,7 +55,7 @@ end
 
 axis equal
 axis([0 30 -7 13])
-title(sprintf('SPH control with loiter circles\nTime = %1.1f',SPH.get_time()),'fontsize',14,'fontname','times')
+title(sprintf('Smoothed Particle Hydrodynamics for Agent Control\nTime = %1.1f',SPH.get_time()),'fontsize',14,'fontname','times')
 set(gca,'fontname','times')
 
 drawnow
