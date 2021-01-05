@@ -1,0 +1,13 @@
+setup.py
+sfc/__init__.py
+sfc/multi_agent_kinetics/__init__.py
+sfc/multi_agent_kinetics/experiments.py
+sfc/multi_agent_kinetics/forces.py
+sfc/multi_agent_kinetics/indicators.py
+sfc/multi_agent_kinetics/integrators.py
+sfc/multi_agent_kinetics/kernels.py
+sfc/multi_agent_kinetics/sim.py
+sph_flock_control.egg-info/PKG-INFO
+sph_flock_control.egg-info/SOURCES.txt
+sph_flock_control.egg-info/dependency_links.txt
+sph_flock_control.egg-info/top_level.txt

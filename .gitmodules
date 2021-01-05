@@ -1,0 +1,3 @@
+[submodule "python/sfc/multi_agent_kinetics"]
+	path = python/sfc/multi_agent_kinetics
+	url = https://github.com/chrisnbattista/multi-agent-kinetics.git
