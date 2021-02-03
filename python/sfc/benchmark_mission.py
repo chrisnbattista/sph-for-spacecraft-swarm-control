@@ -4,18 +4,19 @@
 
 
 
-from multi_agent_kinetics import experiments, viz, worlds, forces
+from  multi_agent_kinetics import experiments, viz, worlds, forces
 
 print("Initiating benchmark mission...")
 
 print("Seeding initial state...")
 world = worlds.World(
-    initial_state=experiments.initialize_random_circle(n_particles=5, radius=30, min_dist=7),
+    initial_state=experiments.initialize_random_circle(n_particles=5, radius=20, min_dist=5.1),
     n_agents=5,
     forces=[
-        lambda x: forces.gravity_well(x, 200),
-        lambda x: forces.world_pressure_force(x),
-        lambda x: forces.world_viscosity_force(x)
+        lambda x: forces.gravity_well(x, 500),
+        lambda x: forces.world_pressure_force(x, h=1),
+        ##lambda x: forces.world_viscosity_force(x, h=5),
+        lambda x: forces.viscous_damping_force(x, 20)
         ]
 )
 
