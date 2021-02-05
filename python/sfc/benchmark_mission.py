@@ -2,7 +2,7 @@
 
 
 
-
+import numpy as np
 
 from multi_agent_kinetics import experiments, viz, worlds, forces
 
@@ -22,12 +22,21 @@ world = worlds.World(
 print("Initializing visualization...")
 fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics")
 
+# example data for particle id, mass, position, velocity, and time of data
+sample_data = np.array([
+    [0, 10, 50, 9, 1],
+    [1, 10, 150, 9, 1],
+    [2, 10, 300, 9, 1],
+    [3, 10, 720, 9, 1],
+    [4, 10, 1000, 9, 1],
+])
+
 for i in range(1000):
 
     world.advance_state()
 
-    viz.render_state(
-        world.get_state(),
+    viz.render_1d_orbit_state(
+        sample_data,
         fig,
         ax,
         agent_colors=['k']*4+['b'],
