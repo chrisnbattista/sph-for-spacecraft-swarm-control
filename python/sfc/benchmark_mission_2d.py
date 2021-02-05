@@ -4,13 +4,13 @@ print("Initiating benchmark mission...")
 
 print("Seeding initial state...")
 world = worlds.World(
-    initial_state=experiments.initialize_random_circle(n_particles=5, radius=20, min_dist=3),
+    initial_state=experiments.initialize_random_circle(n_particles=5, radius=5, min_dist=3),
     n_agents=5,
     forces=[
         lambda x: forces.gravity_well(x, 500),
-        lambda x: forces.world_pressure_force(x, h=1),
+        lambda x: forces.world_pressure_force(x, h=1, pressure=0.0001),
         ##lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x: forces.viscous_damping_force(x, 20)
+        lambda x: forces.viscous_damping_force(x, 80)
         ]
 )
 
