@@ -5,17 +5,19 @@
 import numpy as np
 
 from multi_agent_kinetics import experiments, viz, worlds, forces
+from  multi_agent_kinetics import experiments, viz, worlds, forces
 
 print("Initiating benchmark mission...")
 
 print("Seeding initial state...")
 world = worlds.World(
-    initial_state=experiments.initialize_random_circle(n_particles=5, radius=30, min_dist=7),
+    initial_state=experiments.initialize_random_circle(n_particles=5, radius=20, min_dist=3),
     n_agents=5,
     forces=[
-        lambda x: forces.gravity_well(x, 200),
-        lambda x: forces.world_pressure_force(x),
-        lambda x: forces.world_viscosity_force(x)
+        lambda x: forces.gravity_well(x, 500),
+        lambda x: forces.world_pressure_force(x, h=1),
+        ##lambda x: forces.world_viscosity_force(x, h=5),
+        lambda x: forces.viscous_damping_force(x, 20)
         ]
 )
 
@@ -30,6 +32,7 @@ sample_data = np.array([
     [3, 10, 720, 9, 1],
     [4, 10, 1000, 9, 1],
 ])
+print("Starting sim...")
 
 for i in range(1000):
 
@@ -37,6 +40,8 @@ for i in range(1000):
 
     viz.render_1d_orbit_state(
         sample_data,
+    viz.render_2d_orbit_state(
+        world.get_state(),
         fig,
         ax,
         agent_colors=['k']*4+['b'],
