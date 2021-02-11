@@ -15,7 +15,7 @@ world = worlds.World(
     n_agents=5,
     forces=[
         lambda x: forces.gravity_well(x, 200),
-        lambda x: forces.world_pressure_force(x, h=1),
+        lambda x: forces.world_pressure_force(x, h=1, pressure = 0.001),
         ###lambda x: forces.world_viscosity_force(x, h=5),
         lambda x: forces.viscous_damping_force(x, 150)
         ]
@@ -30,6 +30,14 @@ print("Starting sim...")
 for i in range(1000):
 
     world.advance_state()
+
+    viz.render_1d_orbit_state(
+        world.get_state(),
+        fig,
+        ax,
+        agent_colors=['k']*4+['b'],
+        agent_sizes=[100]*5
+    )
 
     # viz.render_state(
     #     world.get_state(),
