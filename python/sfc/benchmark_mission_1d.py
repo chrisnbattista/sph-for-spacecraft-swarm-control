@@ -15,7 +15,11 @@ world = worlds.World(
     n_agents=5,
     forces=[
         lambda x: forces.gravity_well(x, 200),
+<<<<<<< HEAD
         lambda x: forces.world_pressure_force(x, h=1, pressure = 0.001),
+=======
+        lambda x: forces.world_pressure_force(x, h=1, pressure=0.0001),
+>>>>>>> deed79696481864734d5ff8e9495c9dac6f724b4
         ###lambda x: forces.world_viscosity_force(x, h=5),
         lambda x: forces.viscous_damping_force(x, 150)
         ]
@@ -24,12 +28,12 @@ world = worlds.World(
 print("Initializing visualization...")
 fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics")
 
-print(world.get_state())
-
 print("Starting sim...")
 for i in range(1000):
 
     world.advance_state()
+    print(world.get_state())
+    viz.render_1d_orbit_state(world.get_state(), fig, ax)
 
     viz.render_1d_orbit_state(
         world.get_state(),
