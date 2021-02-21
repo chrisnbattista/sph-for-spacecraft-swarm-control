@@ -14,10 +14,10 @@ world = worlds.World(
     initial_state=experiments.initialize_random_circle(n_particles=5, radius=20, min_dist=1.5, spatial_dims=1),
     n_agents=5,
     forces=[
-        lambda x: forces.gravity_well(x, 200),
-        lambda x: forces.world_pressure_force(x, h=1, pressure=0.0001),
+        lambda x, context: forces.gravity_well(x, 200, context=context),
+        lambda x, context: forces.world_pressure_force(x, h=1, pressure=0.0001, context=context),
         ###lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x: forces.viscous_damping_force(x, 150)
+        lambda x, context: forces.viscous_damping_force(x, 150, context=context)
         ]
 )
 
