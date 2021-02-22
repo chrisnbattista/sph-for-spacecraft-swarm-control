@@ -1,3 +1,10 @@
+
+
+
+
+import numpy as np
+
+from multi_agent_kinetics import experiments, viz, worlds, forces
 from  multi_agent_kinetics import experiments, viz, worlds, forces
 
 print("Initiating benchmark mission...")
@@ -21,12 +28,31 @@ world = worlds.World(
 print("Initializing visualization...")
 fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics")
 
+# example data for particle id, mass, position, velocity, and time of data
+sample_data = np.array([
+    [0, 10, 50, 9, 1],
+    [1, 10, 150, 9, 1],
+    [2, 10, 300, 9, 1],
+    [3, 10, 720, 9, 1],
+    [4, 10, 1000, 9, 1],
+])
 print("Starting sim...")
 
 for i in range(10000):
 
     world.advance_state()
 
+<<<<<<< HEAD
+    viz.render_1d_orbit_state(
+        sample_data,
+    viz.render_2d_orbit_state(
+        world.get_state(),
+        fig,
+        ax,
+        agent_colors=['k']*4+['b'],
+        agent_sizes=[100]*5
+    )
+=======
     if i % 50 == 0:
         viz.render_2d_orbit_state(
             world.get_state(),
@@ -35,3 +61,4 @@ for i in range(10000):
             agent_colors=['k']*4+['b'],
             agent_sizes=[100]*5
         )
+>>>>>>> deed79696481864734d5ff8e9495c9dac6f724b4

@@ -31,6 +31,14 @@ for i in range(1000):
     print(world.get_state())
     viz.render_1d_orbit_state(world.get_state(), fig, ax)
 
+    viz.render_1d_orbit_state(
+        world.get_state(),
+        fig,
+        ax,
+        agent_colors=['k']*4+['b'],
+        agent_sizes=[100]*5
+    )
+
     # viz.render_state(
     #     world.get_state(),
     #     fig,
