@@ -27,7 +27,6 @@ world = worlds.World(
 print("Initializing visualization...")
 fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics")
 
-#kernels.gaussian_function(r = 5, h = 10, a = 10, b = 0, c = 1)
 print("Starting sim...")
 for i in range(1000):
 
