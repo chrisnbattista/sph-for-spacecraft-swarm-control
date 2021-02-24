@@ -17,8 +17,10 @@ world = worlds.World(
         lambda x: forces.gravity_well(x, 200),
         lambda x: forces.world_pressure_force(x, h=1, pressure = 0.001),
         lambda x: forces.world_pressure_force(x, h=1, pressure=0.0001),
+        lambda x, context: forces.linear_attractor(x, 200, context=context),
+        lambda x, context: forces.world_pressure_force(x, h=1, pressure=0.0001, context=context),
         ###lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x: forces.viscous_damping_force(x, 150)
+        lambda x, context: forces.viscous_damping_force(x, 150, context=context)
         ]
 )
 
