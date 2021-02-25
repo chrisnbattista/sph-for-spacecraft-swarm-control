@@ -8,8 +8,7 @@ H = 1
 import numpy as np
 import math
 
-from multi_agent_kinetics import experiments, viz, worlds, forces
-from multi_agent_kinetics import experiments, viz, worlds, forces
+from multi_agent_kinetics import experiments, viz, worlds, forces, indicators
 
 from uhm_hcl import state_estimator
 
@@ -19,7 +18,8 @@ print("Seeding initial state...")
 world = worlds.World(
     initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES, radius=N_PARTICLES*1.2, min_dist=2),
     n_agents=N_PARTICLES,
-    timestep=0.001,
+    n_timesteps=1000000,
+    timestep=0.1,
     forces=[
         lambda x, context: forces.linear_attractor(x, 500, target=LEADER, context=context),
         lambda x, context: forces.world_pressure_force(x, h=H, pressure=0.001, context=context),
@@ -27,6 +27,9 @@ world = worlds.World(
         lambda x, context: forces.viscous_damping_force(x, 80, context=context),
         lambda x, context: forces.swarm_leader_force(x, np.array([200, 200]), context=context)
         ],
+    indicators=[
+        indicators.total_sph_force
+    ],
     context={
         'sph_active': [True] * (N_PARTICLES - 1) + [False],
         'swarm_leader': LEADER,
@@ -37,7 +40,8 @@ world = worlds.World(
 agents = [state_estimator.estimator_init(np.append(world.get_state()[i, 3:5], 0)) for i in range(N_PARTICLES)]
 
 print("Initializing visualization...")
-fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics")
+fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics",
+                            plot_type='2d_proj_orbit')
 fig2, ax2 = viz.set_up_figure(title="Benchmark Mission 1 – 2D plot")
 
 print("Starting sim...")
@@ -58,19 +62,26 @@ for i in range(10000):
 
 
 
-    if i % 50 == 0:
+    if i % 100 == 0:
+        if i % 1000 == 0: si = True
+        else: si = False
         viz.render_2d_orbit_state(
-            state,
+            world,
             fig2,
             ax2,
             agent_colors=['k']*(N_PARTICLES-1)+['b'],
             agent_sizes=[100]*N_PARTICLES,
-            h=2*H
+            h=2*H,
+            t=world.current_timestep * world.timestep_length,
+            show_indicators=si,
+            indicator_labels=['Total SPH force (kN)']
         )
         viz.render_projected_2d_orbit_state(
             state,
             fig,
             ax,
             agent_colors=['k']*(N_PARTICLES-1)+['b'],
-            agent_sizes=[10]*N_PARTICLES
+            agent_sizes=[10]*N_PARTICLES,
+            orbit_radius=408,
+            t=world.current_timestep * world.timestep_length
         )
