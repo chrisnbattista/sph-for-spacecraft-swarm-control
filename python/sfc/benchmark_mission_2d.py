@@ -1,10 +1,5 @@
 
 
-N_PARTICLES = 10
-N_OBSTACLES = 25
-LEADER = N_PARTICLES - 1
-H = 1
-
 import numpy as np
 import math
 
@@ -16,14 +11,25 @@ print("Initiating benchmark mission...")
 
 print("Seeding initial state...")
 
-cs = [
+
+
+
+N_PARTICLES = 10
+H = 2
+if input("Enter something to use 1D benchmark >"):
+    cs = [
+        lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
+        lambda w,s: constraints.recenter_on_agent(w, s, LEADER),
+        constraints.constrain_to_orbit
+    ]
+    N_PARTICLES = 5
+else:
+    cs = [
         lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
         lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
     ]
-
-if input("Enter something to use 1D benchmark >"):
-    cs.append(constraints.constrain_to_orbit)
-    N_PARTICLES = 5
+N_OBSTACLES = 25
+LEADER = N_PARTICLES - 1
 
 world = worlds.World(
     initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES + N_OBSTACLES, radius=20, min_dist=1, random_speed=20),
@@ -31,14 +37,14 @@ world = worlds.World(
     n_timesteps=1000000,
     timestep=0.001,
     forces=[
-        lambda x, context: forces.linear_attractor(x, 100, target=LEADER, context=context),
-        lambda x, context: forces.world_pressure_force(x, h=H, pressure=0.1, context=context),
+        lambda x, context: forces.linear_attractor(x, H*100, target=LEADER, context=context),
+        lambda x, context: forces.world_pressure_force(x, h=H, pressure=1, context=context),
         ##lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x, context: forces.viscous_damping_force(x, 20, context=context)
+        lambda x, context: forces.viscous_damping_force(x, H*20, context=context)
         ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
         ],
     indicators=[
-        indicators.total_sph_force
+        indicators.total_sph_delta_v
     ],
     constraints=cs,
     context={
@@ -94,8 +100,8 @@ for i in range(10000):
             ##agent_sizes=[100]*N_PARTICLES,
             h=2*H,
             t=world.current_timestep * world.timestep_length,
-            show_indicators=si,
-            indicator_labels=['Total SPH force (kN)']
+            show_indicators=si#,
+            ##indicator_labels=['Total SPH force (kN)']
         )
         viz.render_projected_2d_orbit_state(
             world,
