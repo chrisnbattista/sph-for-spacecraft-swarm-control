@@ -5,7 +5,6 @@ N_OBSTACLES = 25
 LEADER = N_PARTICLES - 1
 H = 1
 
-
 import numpy as np
 import math
 
@@ -16,6 +15,16 @@ from uhm_hcl import state_estimator
 print("Initiating benchmark mission...")
 
 print("Seeding initial state...")
+
+cs = [
+        lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
+        lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
+    ]
+
+if input("Enter something to use 1D benchmark >"):
+    cs.append(constraints.constrain_to_orbit)
+    N_PARTICLES = 5
+
 world = worlds.World(
     initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES + N_OBSTACLES, radius=20, min_dist=1, random_speed=20),
     n_agents=N_PARTICLES + N_OBSTACLES,
@@ -23,7 +32,7 @@ world = worlds.World(
     timestep=0.001,
     forces=[
         lambda x, context: forces.linear_attractor(x, 100, target=LEADER, context=context),
-        lambda x, context: forces.world_pressure_force(x, h=H, pressure=0.01, context=context),
+        lambda x, context: forces.world_pressure_force(x, h=H, pressure=0.1, context=context),
         ##lambda x: forces.world_viscosity_force(x, h=5),
         lambda x, context: forces.viscous_damping_force(x, 20, context=context)
         ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
@@ -31,10 +40,7 @@ world = worlds.World(
     indicators=[
         indicators.total_sph_force
     ],
-    constraints=[
-        lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
-        lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
-    ],
+    constraints=cs,
     context={
         'sph_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
         'following_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
