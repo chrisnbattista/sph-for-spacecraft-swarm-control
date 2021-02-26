@@ -8,7 +8,7 @@ H = 1
 import numpy as np
 import math
 
-from multi_agent_kinetics import experiments, viz, worlds, forces, indicators
+from multi_agent_kinetics import experiments, viz, worlds, forces, indicators, constraints
 
 from uhm_hcl import state_estimator
 
@@ -19,16 +19,20 @@ world = worlds.World(
     initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES, radius=N_PARTICLES*1.2, min_dist=2),
     n_agents=N_PARTICLES,
     n_timesteps=1000000,
-    timestep=0.1,
+    timestep=0.001,
     forces=[
         lambda x, context: forces.linear_attractor(x, 500, target=LEADER, context=context),
         lambda x, context: forces.world_pressure_force(x, h=H, pressure=0.001, context=context),
         ##lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x, context: forces.viscous_damping_force(x, 80, context=context),
-        lambda x, context: forces.swarm_leader_force(x, np.array([200, 200]), context=context)
+        lambda x, context: forces.viscous_damping_force(x, 100, context=context)
+        ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
         ],
     indicators=[
         indicators.total_sph_force
+    ],
+    constraints=[
+        lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
+        lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
     ],
     context={
         'sph_active': [True] * (N_PARTICLES - 1) + [False],
@@ -62,7 +66,7 @@ for i in range(10000):
 
 
 
-    if i % 100 == 0:
+    if i % 10 == 0:
         if i % 1000 == 0: si = True
         else: si = False
         viz.render_2d_orbit_state(
@@ -77,7 +81,7 @@ for i in range(10000):
             indicator_labels=['Total SPH force (kN)']
         )
         viz.render_projected_2d_orbit_state(
-            state,
+            world,
             fig,
             ax,
             agent_colors=['k']*(N_PARTICLES-1)+['b'],
