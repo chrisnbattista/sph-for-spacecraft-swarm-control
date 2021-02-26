@@ -1,6 +1,7 @@
 
 
-N_PARTICLES = 15
+N_PARTICLES = 10
+N_OBSTACLES = 25
 LEADER = N_PARTICLES - 1
 H = 1
 
@@ -16,15 +17,15 @@ print("Initiating benchmark mission...")
 
 print("Seeding initial state...")
 world = worlds.World(
-    initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES, radius=N_PARTICLES*1.2, min_dist=2),
-    n_agents=N_PARTICLES,
+    initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES + N_OBSTACLES, radius=20, min_dist=1, random_speed=20),
+    n_agents=N_PARTICLES + N_OBSTACLES,
     n_timesteps=1000000,
     timestep=0.001,
     forces=[
-        lambda x, context: forces.linear_attractor(x, 500, target=LEADER, context=context),
-        lambda x, context: forces.world_pressure_force(x, h=H, pressure=0.001, context=context),
+        lambda x, context: forces.linear_attractor(x, 100, target=LEADER, context=context),
+        lambda x, context: forces.world_pressure_force(x, h=H, pressure=0.01, context=context),
         ##lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x, context: forces.viscous_damping_force(x, 100, context=context)
+        lambda x, context: forces.viscous_damping_force(x, 20, context=context)
         ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
         ],
     indicators=[
@@ -35,12 +36,14 @@ world = worlds.World(
         lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
     ],
     context={
-        'sph_active': [True] * (N_PARTICLES - 1) + [False],
+        'sph_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
+        'following_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
+        'damping_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
         'swarm_leader': LEADER,
         'spatial_dims': 2
     }
 )
-
+print(np.append(world.get_state()[0, 3:5], 0))
 agents = [state_estimator.estimator_init(np.append(world.get_state()[i, 3:5], 0)) for i in range(N_PARTICLES)]
 
 print("Initializing visualization...")
@@ -56,11 +59,19 @@ for i in range(10000):
     state = world.get_state()
 
     # HCL
-    neighbor_location = np.zeros((3,1))
-    #std = np.zeros((3,1))
-
+    std = np.full((3,1), 0.00000000000001)
     #dead_reckoning_estimates = [state_estimator.eif_dr(agents[i], world.timestep_length, np.append(state[i,5:7], 0).T, std) for i in range(N_PARTICLES)]
-    #sensor_fusion_estimates = [state_estimator.eif(agents[i], world.timestep_length, np.append(state[i, 5:7], 0).T, std, np.append(state[i:,3:5], 0).T, std, neighbor_location)]
+    # for i in range(world.n_agents):
+    #     for j in range(world.n_agents):
+    #         state_estimator.eif(
+    #             agent=agents[i], 
+    #             dt=world.timestep_length, 
+    #             u=np.append(state[i, 5:7], 0).T, 
+    #             sigma_u=std, 
+    #             r=[np.append(state[i:,3:5], 0).T - np.append(state[j:,3:5], 0).T], 
+    #             sigma_r=[std], 
+    #             neighbor=[np.append(state[j:,3:5], 0).T)]
+                
     # loop through n^2, each neighbor of each agent (only if close enough)
     # hdj is neighbor state estimate
 
@@ -73,8 +84,8 @@ for i in range(10000):
             world,
             fig2,
             ax2,
-            agent_colors=['k']*(N_PARTICLES-1)+['b'],
-            agent_sizes=[100]*N_PARTICLES,
+            agent_colors=['b']*(N_PARTICLES-1)+['g']+['k']*(N_OBSTACLES),
+            ##agent_sizes=[100]*N_PARTICLES,
             h=2*H,
             t=world.current_timestep * world.timestep_length,
             show_indicators=si,
@@ -84,8 +95,8 @@ for i in range(10000):
             world,
             fig,
             ax,
-            agent_colors=['k']*(N_PARTICLES-1)+['b'],
-            agent_sizes=[10]*N_PARTICLES,
+            agent_colors=['b']*(N_PARTICLES-1)+['g']+['k']*(N_OBSTACLES),
+            ##agent_sizes=[10]*N_PARTICLES,
             orbit_radius=408,
             t=world.current_timestep * world.timestep_length
         )
