@@ -14,8 +14,8 @@ print("Seeding initial state...")
 
 
 
-N_PARTICLES = 10
-H = 2
+N_PARTICLES = 7
+H = 1
 if input("Enter something to use 1D benchmark >"):
     cs = [
         lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
@@ -29,7 +29,7 @@ else:
         lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
     ]
 N_OBSTACLES = 25
-LEADER = N_PARTICLES - 1
+LEADER = 0
 
 world = worlds.World(
     initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES + N_OBSTACLES, radius=20, min_dist=1, random_speed=20),
@@ -37,10 +37,10 @@ world = worlds.World(
     n_timesteps=1000000,
     timestep=0.001,
     forces=[
-        lambda x, context: forces.linear_attractor(x, H*100, target=LEADER, context=context),
+        lambda x, context: forces.linear_attractor(x, H*300, target=LEADER, context=context),
         lambda x, context: forces.world_pressure_force(x, h=H, pressure=1, context=context),
         ##lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x, context: forces.viscous_damping_force(x, H*20, context=context)
+        lambda x, context: forces.viscous_damping_force(x, H*600, context=context)
         ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
         ],
     indicators=[
@@ -48,9 +48,9 @@ world = worlds.World(
     ],
     constraints=cs,
     context={
-        'sph_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
-        'following_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
-        'damping_active': [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES + 1),
+        'sph_active': [True] * (N_PARTICLES - 1) + [False] + [False] * (N_OBSTACLES),
+        'following_active': [True] * (N_PARTICLES - 1) + [True] + [False] * (N_OBSTACLES),
+        'damping_active': [True] * (N_PARTICLES - 1) + [True] + [False] * (N_OBSTACLES),
         'swarm_leader': LEADER,
         'spatial_dims': 2
     }
@@ -63,12 +63,17 @@ fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hy
                             plot_type='2d_proj_orbit')
 fig2, ax2 = viz.set_up_figure(title="Benchmark Mission 1 – 2D plot")
 
+input("Press enter when ready >")
 print("Starting sim...")
 
-for i in range(10000):
+H_0 = H
+
+for i in range(1000000):
 
     world.advance_state()
     state = world.get_state()
+
+    H = H_0 + np.sin(i/1000) / 3
 
     # HCL
     std = np.full((3,1), 0.00000000000001)
@@ -96,7 +101,7 @@ for i in range(10000):
             world,
             fig2,
             ax2,
-            agent_colors=['b']*(N_PARTICLES-1)+['g']+['k']*(N_OBSTACLES),
+            agent_colors=['g']+['k']*(N_PARTICLES-1)+['r']*(N_OBSTACLES),
             ##agent_sizes=[100]*N_PARTICLES,
             h=2*H,
             t=world.current_timestep * world.timestep_length,
@@ -107,7 +112,7 @@ for i in range(10000):
             world,
             fig,
             ax,
-            agent_colors=['b']*(N_PARTICLES-1)+['g']+['k']*(N_OBSTACLES),
+            agent_colors=['g']+['k']*(N_PARTICLES-1)+['r']*(N_OBSTACLES),
             ##agent_sizes=[10]*N_PARTICLES,
             orbit_radius=408,
             t=world.current_timestep * world.timestep_length
