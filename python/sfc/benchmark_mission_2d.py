@@ -32,15 +32,15 @@ N_OBSTACLES = 25
 LEADER = 0
 
 world = worlds.World(
-    initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES + N_OBSTACLES, radius=20, min_dist=1, random_speed=20),
+    initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES + N_OBSTACLES, radius=20, min_dist=1, random_speed=10),
     n_agents=N_PARTICLES + N_OBSTACLES,
     n_timesteps=1000000,
     timestep=0.001,
     forces=[
-        lambda x, context: forces.linear_attractor(x, H*300, target=LEADER, context=context),
-        lambda x, context: forces.world_pressure_force(x, h=H, pressure=1, context=context),
+        lambda x, context: forces.linear_attractor(x, H*50, target=LEADER, context=context),
+        lambda x, context: forces.world_pressure_force(x, h=H, pressure=10000, context=context),
         ##lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x, context: forces.viscous_damping_force(x, H*600, context=context)
+        lambda x, context: forces.viscous_damping_force(x, H*100, context=context)
         ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
         ],
     indicators=[
@@ -48,15 +48,14 @@ world = worlds.World(
     ],
     constraints=cs,
     context={
-        'sph_active': [True] * (N_PARTICLES - 1) + [False] + [False] * (N_OBSTACLES),
-        'following_active': [True] * (N_PARTICLES - 1) + [True] + [False] * (N_OBSTACLES),
-        'damping_active': [True] * (N_PARTICLES - 1) + [True] + [False] * (N_OBSTACLES),
+        'sph_active': [True] + [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES),
+        'following_active': [True] + [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES),
+        'damping_active': [True] + [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES),
         'swarm_leader': LEADER,
         'spatial_dims': 2
     }
 )
-print(np.append(world.get_state()[0, 3:5], 0))
-agents = [state_estimator.estimator_init(np.append(world.get_state()[i, 3:5], 0)) for i in range(N_PARTICLES)]
+world.control_agents = [state_estimator.Agent(np.append(world.get_state()[i, 3:5], 0)) for i in range(N_PARTICLES)]
 
 print("Initializing visualization...")
 fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics",
@@ -73,26 +72,26 @@ for i in range(1000000):
     world.advance_state()
     state = world.get_state()
 
-    H = H_0 + np.sin(i/1000) / 3
+    #H = H_0 + np.sin(i/1000) / 3
+    if i > 10000: H = H_0 * 2
 
     # HCL
     std = np.full((3,1), 0.00000000000001)
     #dead_reckoning_estimates = [state_estimator.eif_dr(agents[i], world.timestep_length, np.append(state[i,5:7], 0).T, std) for i in range(N_PARTICLES)]
-    # for i in range(world.n_agents):
-    #     for j in range(world.n_agents):
-    #         state_estimator.eif(
-    #             agent=agents[i], 
-    #             dt=world.timestep_length, 
-    #             u=np.append(state[i, 5:7], 0).T, 
-    #             sigma_u=std, 
-    #             r=[np.append(state[i:,3:5], 0).T - np.append(state[j:,3:5], 0).T], 
-    #             sigma_r=[std], 
-    #             neighbor=[np.append(state[j:,3:5], 0).T)]
+    for j in range(N_PARTICLES):
+        for k in range(N_PARTICLES):
+            if j == k: continue
+            world.control_agents[j].eif(
+                dt=world.timestep_length, 
+                u=np.append(state[j, 5:7], 0).T, # velocity states
+                sigma_u=std, 
+                r=[np.append(state[j,3:5], 0).T - np.append(state[k,3:5], 0).T], # difference in position states
+                sigma_r=[std], 
+                neighbor=[np.append(state[k,3:5], 0).T],
+                gps=np.append(state[j,3:5], 0).T,
+                sigma_gps=std
+            )
                 
-    # loop through n^2, each neighbor of each agent (only if close enough)
-    # hdj is neighbor state estimate
-
-
 
     if i % 10 == 0:
         if i % 1000 == 0: si = True
