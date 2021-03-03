@@ -18,14 +18,14 @@ N_PARTICLES = 7
 H = 1
 if input("Enter something to use 1D benchmark >"):
     cs = [
-        lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
+        lambda w,s: constraints.linear_motion(w, s, np.array([7660, 0])),
         lambda w,s: constraints.recenter_on_agent(w, s, LEADER),
         constraints.constrain_to_orbit
     ]
     N_PARTICLES = 5
 else:
     cs = [
-        lambda w,s: constraints.linear_motion(w, s, np.array([800, 0])),
+        lambda w,s: constraints.linear_motion(w, s, np.array([7660, 0])),
         lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
     ]
 N_OBSTACLES = 25
@@ -76,19 +76,19 @@ for i in range(1000000):
     if i > 10000: H = H_0 * 2
 
     # HCL
-    std = np.full((3,1), 0.00000000000001)
+    std = np.full((3,1), 1)
     #dead_reckoning_estimates = [state_estimator.eif_dr(agents[i], world.timestep_length, np.append(state[i,5:7], 0).T, std) for i in range(N_PARTICLES)]
     for j in range(N_PARTICLES):
         for k in range(N_PARTICLES):
             if j == k: continue
             world.control_agents[j].eif(
                 dt=world.timestep_length, 
-                u=np.append(state[j, 5:7], 0).T, # velocity states
+                u=np.append(state[j, 5:7], 0).T + np.random.normal(0, std, (3,1)), # velocity states
                 sigma_u=std, 
-                r=[np.append(state[j,3:5], 0).T - np.append(state[k,3:5], 0).T], # difference in position states
+                r=[np.append(state[j,3:5], 0).T - np.append(state[k,3:5], 0).T + np.random.normal(0, std, (3,1))], # difference in position states
                 sigma_r=[std], 
-                neighbor=[np.append(state[k,3:5], 0).T],
-                gps=np.append(state[j,3:5], 0).T,
+                neighbor=[np.append(state[k,3:5], 0).T + np.random.normal(0, std, (3,1))],
+                gps=np.append(state[j,3:5], 0).T + np.random.normal(0, std, (3,1)),
                 sigma_gps=std
             )
                 
@@ -104,8 +104,10 @@ for i in range(1000000):
             ##agent_sizes=[100]*N_PARTICLES,
             h=2*H,
             t=world.current_timestep * world.timestep_length,
-            show_indicators=si#,
-            ##indicator_labels=['Total SPH force (kN)']
+            show_indicators=si,
+            indicator_labels=[
+                ('Total SPH force (kN)', 'time (ksec)', 'total SPH delta_v (km/ksec^2')
+                ]
         )
         viz.render_projected_2d_orbit_state(
             world,
@@ -113,6 +115,6 @@ for i in range(1000000):
             ax,
             agent_colors=['g']+['k']*(N_PARTICLES-1)+['r']*(N_OBSTACLES),
             ##agent_sizes=[10]*N_PARTICLES,
-            orbit_radius=408,
+            orbit_radius=6378 + 408, # radius of earth + ISS orbit altitude
             t=world.current_timestep * world.timestep_length
         )
