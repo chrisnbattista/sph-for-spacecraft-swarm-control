@@ -2,7 +2,8 @@
 
 
 
-
+N_PARTICLES = 15
+LEADER = N_PARTICLES - 1
 
 from  multi_agent_kinetics import experiments, viz, worlds, forces, kernels
 
@@ -18,7 +19,12 @@ world = worlds.World(
         lambda x, context: forces.world_pressure_force(x, h=1, pressure=0.0001, context=context),
         ###lambda x: forces.world_viscosity_force(x, h=5),
         lambda x, context: forces.viscous_damping_force(x, 150, context=context)
-        ]
+        ],
+        context={
+        'sph_active': [True] * (N_PARTICLES - 1) + [False],
+        'swarm_leader': LEADER,
+        'spatial_dims': 2
+    }
 )
 
 print("Initializing visualization...")
@@ -29,13 +35,13 @@ for i in range(1000):
 
      world.advance_state()
      print(world.get_state())
-     viz.render_1d_orbit_state(world.get_state(), fig, ax)
+     #viz.render_1d_orbit_state(world.get_state(), fig, ax)
 
      viz.render_1d_orbit_state(
          world.get_state(),
          fig,
          ax,
-         h,
+         h = 1,
          agent_colors=['k']*4+['b'],
          agent_sizes=[100]*5
      )
