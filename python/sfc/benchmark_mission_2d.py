@@ -1,5 +1,5 @@
 
-
+import seaborn as sns
 import numpy as np
 import math
 
@@ -44,7 +44,7 @@ world = worlds.World(
         ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
         ],
     indicators=[
-        indicators.total_sph_delta_v
+        indicators.total_sph_delta_v,
     ],
     constraints=cs,
     context={
@@ -91,10 +91,11 @@ for i in range(1000000):
                 gps=np.append(state[j,3:5], 0).T + np.random.normal(0, std, (3,1)),
                 sigma_gps=std
             )
+        ##world.control_agents[j].add_to_history()
                 
 
     if i % 10 == 0:
-        if i % 1000 == 0: si = True
+        if i % 500 == 0: si = True
         else: si = False
         viz.render_2d_orbit_state(
             world,
@@ -118,3 +119,17 @@ for i in range(1000000):
             orbit_radius=6378 + 408, # radius of earth + ISS orbit altitude
             t=world.current_timestep * world.timestep_length
         )
+        if False:
+            for a in range(len(world.control_agents)):
+                # || estimated position - actual position ||2
+                ##print(world.control_agents[a].history)
+                error_each_step = np.linalg.norm(
+                    np.stack(world.control_agents[a].history) - world.get_history()[a:world.current_timestep*world.n_agents:world.n_agents,3:5],
+                    axis=1
+                )
+                sns.lineplot(
+                    x=np.linspace(world.timestep_length, world.current_timestep*world.timestep_length, world.current_timestep),
+                    y=error_each_step,
+                    ax=viz.get_floating_plot(f"Agent {a} HCL Error").gca(),
+                    legend=False
+                )
