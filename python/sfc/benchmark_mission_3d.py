@@ -67,7 +67,7 @@ world.control_agents = [state_estimator.Agent(world.get_state()[i, pos]) for i i
 
 print("Initializing visualization...")
 fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics",
-                            plot_type='2d_proj_orbit')
+                            plot_type='3d_plot')
 fig2, ax2 = viz.set_up_figure(title="Benchmark Mission 1 – 3D plot")
 
 input("Press enter when ready >")
@@ -110,7 +110,14 @@ for i in range(1000000):
             fig2,
             ax2,
             agent_colors=['g']+['k']*(N_PARTICLES-1)+['r']*(N_OBSTACLES),
-            ##agent_sizes=[100]*N_PARTICLES,
+            h=2*H,
+            t=world.current_timestep * world.timestep_length
+        )
+        viz.render_3d_orbit_state(
+            world,
+            fig,
+            ax,
+            agent_colors=['g']+['k']*(N_PARTICLES-1)+['r']*(N_OBSTACLES),
             h=2*H,
             t=world.current_timestep * world.timestep_length,
             show_indicators=si,
