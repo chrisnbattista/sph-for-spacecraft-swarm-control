@@ -1,82 +1,120 @@
 
 
-N_PARTICLES = 15
-LEADER = N_PARTICLES - 1
-
-
 import numpy as np
 import math
 
-from multi_agent_kinetics import experiments, viz, worlds, forces
-from multi_agent_kinetics import experiments, viz, worlds, forces
+from multi_agent_kinetics import experiments, viz, worlds, forces, indicators, constraints
 
 from uhm_hcl import state_estimator
 
 print("Initiating benchmark mission...")
 
 print("Seeding initial state...")
+
+
+
+
+N_PARTICLES = 7
+H = 1
+if input("Enter something to use 1D benchmark >"):
+    cs = [
+        lambda w,s: constraints.linear_motion(w, s, np.array([7660, 0])),
+        lambda w,s: constraints.recenter_on_agent(w, s, LEADER),
+        constraints.constrain_to_orbit
+    ]
+    N_PARTICLES = 5
+else:
+    cs = [
+        lambda w,s: constraints.linear_motion(w, s, np.array([7660, 0])),
+        lambda w,s: constraints.recenter_on_agent(w, s, LEADER)
+    ]
+N_OBSTACLES = 25
+LEADER = 0
+
 world = worlds.World(
-    initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES, radius=N_PARTICLES*1.2, min_dist=3),
-    n_agents=N_PARTICLES,
+    initial_state=experiments.initialize_random_circle(n_particles=N_PARTICLES + N_OBSTACLES, radius=20, min_dist=1, random_speed=10),
+    n_agents=N_PARTICLES + N_OBSTACLES,
+    n_timesteps=1000000,
     timestep=0.001,
     forces=[
-        lambda x, context: forces.linear_attractor(x, 500, target=LEADER, context=context),
-        lambda x, context: forces.world_pressure_force(x, h=1, pressure=0.001, context=context),
+        lambda x, context: forces.linear_attractor(x, H*50, target=LEADER, context=context),
+        lambda x, context: forces.world_pressure_force(x, h=H, pressure=10000, context=context),
         ##lambda x: forces.world_viscosity_force(x, h=5),
-        lambda x, context: forces.viscous_damping_force(x, 80, context=context),
-        lambda x, context: forces.swarm_leader_force(x, np.array([200, 200]), context=context)
+        lambda x, context: forces.viscous_damping_force(x, H*100, context=context)
+        ##lambda x, context: forces.swarm_leader_force(x, np.array([200, 0]), context=context)
         ],
+    indicators=[
+        indicators.total_sph_delta_v
+    ],
+    constraints=cs,
     context={
-        'sph_active': [True] * (N_PARTICLES - 1) + [False],
+        'sph_active': [True] + [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES),
+        'following_active': [True] + [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES),
+        'damping_active': [True] + [True] * (N_PARTICLES - 1) + [False] * (N_OBSTACLES),
         'swarm_leader': LEADER,
         'spatial_dims': 2
     }
 )
-
-agents = [state_estimator.estimator_init(np.append(world.get_state()[i, 3:5], 0)) for i in range(N_PARTICLES)]
+world.control_agents = [state_estimator.Agent(np.append(world.get_state()[i, 3:5], 0)) for i in range(N_PARTICLES)]
 
 print("Initializing visualization...")
-fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics")
+fig, ax = viz.set_up_figure(title="Benchmark Mission 1 with Smoothed Particle Hydrodynamics",
+                            plot_type='2d_proj_orbit')
 fig2, ax2 = viz.set_up_figure(title="Benchmark Mission 1 – 2D plot")
 
-# example data for particle id, mass, position, velocity, and time of data
-sample_data = np.array([
-    [0, 10, 50, 9, 1],
-    [1, 10, 150, 9, 1],
-    [2, 10, 300, 9, 1],
-    [3, 10, 720, 9, 1],
-    [4, 10, 1000, 9, 1],
-])
+input("Press enter when ready >")
 print("Starting sim...")
 
-for i in range(10000):
+H_0 = H
+
+for i in range(1000000):
 
     world.advance_state()
     state = world.get_state()
 
+    #H = H_0 + np.sin(i/1000) / 3
+    if i > 10000: H = H_0 * 2
+
     # HCL
-    #neighbor_location = np.zeros((3,1))
-    #std = np.zeros((3,1))
-
+    std = np.full((3,1), 1)
     #dead_reckoning_estimates = [state_estimator.eif_dr(agents[i], world.timestep_length, np.append(state[i,5:7], 0).T, std) for i in range(N_PARTICLES)]
-    #sensor_fusion_estimates = [state_estimator.eif(agents[i], world.timestep_length, np.append(state[i, 5:7], 0).T, std, np.append(state[i:,3:5], 0).T, std, neighbor_location)]
-    # loop through n^2, each neighbor of each agent (only if close enough)
-    # hdj is neighbor state estimate
+    for j in range(N_PARTICLES):
+        for k in range(N_PARTICLES):
+            if j == k: continue
+            world.control_agents[j].eif(
+                dt=world.timestep_length, 
+                u=np.append(state[j, 5:7], 0).T + np.random.normal(0, std, (3,1)), # velocity states
+                sigma_u=std, 
+                r=[np.append(state[j,3:5], 0).T - np.append(state[k,3:5], 0).T + np.random.normal(0, std, (3,1))], # difference in position states
+                sigma_r=[std], 
+                neighbor=[np.append(state[k,3:5], 0).T + np.random.normal(0, std, (3,1))],
+                gps=np.append(state[j,3:5], 0).T + np.random.normal(0, std, (3,1)),
+                sigma_gps=std
+            )
+                
 
-
-
-    if i % 50 == 0:
+    if i % 10 == 0:
+        if i % 1000 == 0: si = True
+        else: si = False
         viz.render_2d_orbit_state(
-            state,
+            world,
             fig2,
             ax2,
-            agent_colors=['k']*(N_PARTICLES-1)+['b'],
-            agent_sizes=[100]*N_PARTICLES
+            agent_colors=['g']+['k']*(N_PARTICLES-1)+['r']*(N_OBSTACLES),
+            ##agent_sizes=[100]*N_PARTICLES,
+            h=2*H,
+            t=world.current_timestep * world.timestep_length,
+            show_indicators=si,
+            indicator_labels=[
+                ('Total SPH force (kN)', 'time (ksec)', 'total SPH delta_v (km/ksec^2')
+                ]
         )
         viz.render_projected_2d_orbit_state(
-            state,
+            world,
             fig,
             ax,
-            agent_colors=['k']*(N_PARTICLES-1)+['b'],
-            agent_sizes=[10]*N_PARTICLES
+            agent_colors=['g']+['k']*(N_PARTICLES-1)+['r']*(N_OBSTACLES),
+            ##agent_sizes=[10]*N_PARTICLES,
+            orbit_radius=6378 + 408, # radius of earth + ISS orbit altitude
+            t=world.current_timestep * world.timestep_length
         )
