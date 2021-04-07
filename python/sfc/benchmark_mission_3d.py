@@ -37,7 +37,9 @@ world = worlds.World(
                                                         radius=20,
                                                         min_dist=1,
                                                         random_speed=10,
-                                                        spatial_dims=3),
+                                                        spatial_dims=3,
+                                                        center=(2888, 5890, 1530)
+                                                        ),
     n_agents=N_PARTICLES + N_OBSTACLES,
     spatial_dims=3,
     n_timesteps=1000000,
