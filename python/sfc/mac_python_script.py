@@ -1,6 +1,6 @@
-
 import json, math
 import numpy as np
+from sklearn.preprocessing import normalize
 
 # Called from nodes being simulated
 # Accepts as arguments:
@@ -12,10 +12,144 @@ import numpy as np
 #	2) Parse the data structure and modify the values in the python script
 #	3) Return back the modified state vectors to the agent
 
+# Define kernel scaling factors
+def quadratic_scaling_factor_3d(h):
+	"""Returns the correct scaling factor for the 3D version of the quadratic kernel."""
+	return 3.0/(16*math.pi) * h**3
+
+def spline_scaling_factor_3d(h):
+	"""Returns the correct scaling factor for the 3D version of the B-spline kernel."""
+	return 1.0 / (6*math.pi**2) * h**3
+
+# Define the kernel functions
+# TO DO: insert B-spline kernel once derivation complete for 3D
+def quadratic(r, h):
+	"""Implements a quadratic kernel function with support radius of 2h."""
+	if r/h < 2:
+		return 	quadratic_scaling_factor_3d(h) \
+				* 15.0 / (16 * math.pi * h**3) \
+				* ((r/h)**2 / 4 - r/h + 1)
+	else:
+		return 0
+
+def quadratic_grad(r, h):
+	"""Implements the gradient of a quadratic kernel function with support radius of 2h."""
+	if r/h < 2:
+		return 	quadratic_scaling_factor_3d(h) \
+				* 15.0 / (16 * math.pi * h**4) \
+				* (r/h/2 - 1)
+	else:
+		return 0
+
+# Define the property function
+def pairwise_density(c_squared, rho_0, r_ij, h):
+	"""Returns the density at point i that is attributable to a particle that is r_ij away."""
+	return 	c_squared \
+			* rho_0 \
+			* (2.0/3 * quadratic(r=r_ij, h=h) * quadratic(r=0, h=h) - 1.0/3)
+
+def r_ijs_density_and_pressure(i, sim_states, sim_params, computed_params):
+	"""Returns the pairwise interagent distances, density and pressure at particle index i."""
+	r_ijs = []
+	rho = 0
+	P = 0
+	for particle in sim_states:
+		r_ij = np.linalg.norm([
+									particle['x_pos'] - sim_states[i]['x_pos'],
+									particle['y_pos'] - sim_states[i]['y_pos'],
+									particle['z_pos'] - sim_states[i]['z_pos'],
+								])
+		rho 	+= computed_params['m'] * quadratic(r=r_ij, h=sim_params['h'])
+		P 		+= computed_params['c_squared']**2 \
+					* computed_params['rho_0'] * \
+					(2.0/3 * quadratic(r=r_ij, h=sim_params['h']) / quadratic(r=0, h=sim_params['h']) - 1.0/3)
+		r_ijs.append(r_ij)
+	return r_ijs, rho, P
+
+def pairwise_direction(i, j, sim_states):
+	"""Returns the norm-1 direction vector from particle i to particle j."""
+	return normalize([[
+									sim_states[j]['x_pos'] - sim_states[i]['x_pos'],
+									sim_states[j]['y_pos'] - sim_states[i]['y_pos'],
+									sim_states[j]['z_pos'] - sim_states[i]['z_pos'],
+								]])
+
+def pairwise_velocities(i, sim_states):
+	"""Returns all pairwise velocities for particle i."""
+	v_ijs = []
+	for j in range(len(sim_states)):
+		v_ijs.append(np.array([
+						sim_states[j]['x_vel'] - sim_states[i]['x_vel'],
+						sim_states[j]['y_vel'] - sim_states[i]['y_vel'],
+						sim_states[j]['z_vel'] - sim_states[i]['z_vel']
+		]))
+	return v_ijs
+
+# Define the force functions
+def F_fluid(i, sim_states, sim_params, computed_params):
+	"""Returns the hydrodynamic forces (pressure and viscosity) on particle index i in sim_states."""
+	r_ijs, rho_i, P_i = r_ijs_density_and_pressure(i, sim_states, sim_params, computed_params)
+	throwaway, rho_j, P_j = r_ijs_density_and_pressure(i, sim_states, sim_params, computed_params)
+	v_ijs = pairwise_velocities(i, sim_states)
+	F_T = 0
+	for j in range(len(sim_states)):
+		if i == j: continue
+		r_ij = r_ijs[j]
+		v_ij = v_ijs[j]
+		F_T += - computed_params['m'] \
+				* ( P_i / rho_i**2 + P_j / rho_j**2 ) \
+				* quadratic_grad(r=r_ij, h=sim_params['h']) \
+				* pairwise_direction(i, j, sim_states) \
+				+ \
+				computed_params['m'] * 2.0 \
+				* computed_params['mu'] / (rho_i * rho_j) \
+				* v_ij / r_ij \
+				* quadratic_grad(r=r_ij, h=sim_params['h'])
+	return F_T
+
+# TO DO: insert updated mathematics once spline is ready
+def F_attractor(i, sim_states, sim_params, computed_params):
+	return np.zeros((3,))
+
+# Define initial calculation of important constants
+def compute_derived_parameters(
+										p,
+										M,
+										h,
+										gamma,
+										rho_0,
+										a_max,
+										v_max,
+										Re,
+										inter_agent_w=1,
+										attractor_w=1,
+										obstacle_w=1
+									):
+	"""Computes and returns the parameters (mass, mu, squared information speed,
+	and pressure) that can be derived from the given parameters."""
+	# This mass is selected according to Song et al '17 OE to create a mixed
+	# repelling and attracting force with a natural resting interparticle separation
+	# distance of 0.5858 * h
+	m = 2.0/3 * rho_0 / quadratic(0, p['h'])
+	# these mu and c_squared are calculated for r=h assuming M=1 and
+	# using a_max = || Re * (F_mu + F_P) ||
+	# for the two particle case
+	mu = a_max / v_max / (1 + Re) * 32 * math.pi / 15 * m * h**5 * quadratic(r=h, h=h)**2
+	c_squared = a_max \
+					/ (1 + 1/Re) \
+					* (quadratic(r=0, h=h) + quadratic(r=h, h=h))**2 \
+					/ ( quadratic_grad(r=h, h=h) * (2*quadratic(r=h, h=h) - quadratic(r=0, h=h)) )
+	return {
+		'm': m,
+		'mu': mu,
+		'c_squared': c_squared
+	}
+
 def mac_python(node_name, sim_states, sim_params):
 	'''Computes the Multi-Agent Control (MAC) algorithm for one agent.
 
-	Expects sim_states to contain x,y,z positions and velocities. Expects sim_params to contain: h, Re, a_max, v_max.'''
+	Expects sim_states to contain x,y,z positions and velocities for all agents.
+	Expects sim_params to contain: h, Re, a_max, v_max, x_target_pos, y_target_pos, z_target_pos.'''
 
 	# Fixed parameters
 	M = 1
@@ -25,96 +159,50 @@ def mac_python(node_name, sim_states, sim_params):
 	attractor_w = 1
 	obstacle_w = 1 # not used in benchmark
 
-	# Define the force functions
-	# TO DO: insert updated mathematics once implemented from derivation (derivation in progress March 24)
-	def pressure(i, j, sim_params): return np.zeros((3,))
-	def viscosity(i, j, sim_params): return np.zeros((3,))
-	def attractor(i, sim_params): return np.zeros((3,))
-
-	# Define the function to combine all forces on an individual particle from other particles
-	def inter_agent_interaction_force(i, j, sim_params):
-		return pressure(i, j, sim_params) + viscosity(i, j, sim_params)
-
 	# Load data from JSON
 	p = json.loads(sim_params)['sim_params']
 	s = json.loads(sim_states)['sim_states']
 
 	# Find self in data
 	me = next(x for x in range(len(s)) if s[x]['agent_name'] == node_name)
-
-	# Define initial calculation of important constants
-	def compute_derived_parameters(	p=p,
-									M=M,
-									gamma=gamma,
-									rho_0=rho_0,
-									inter_agent_w=inter_agent_w,
-									attractor_w=attractor_w,
-									obstacle_w=obstacle_w):
-		"""Computes and returns the parameters (mass, mu, squared information speed, and pressure) that can be derived from the given parameters."""
-		m = 2.0/3 * rho_0 / quadratic(0, p['h'])
-		## TO DO: insert equations
-		mu = 1
-		c_squared = 1
-		##
-		P = c_squared \
-			* rho_0 \
-			* (2.0/3 * quadratic(r=p['h'], h=p['h']) * quadratic(r=0, h=p['h']) - 1.0/3)
-		return m, mu, c_squared, P
-
-	# Define kernel scaling factors
-	## TO DO: insert more exact values from derivations
-	omega_quadratic_3d = 1/math.pi
-	omega_spline_3d = 1/math.pi
-	##
-	# Define the kernel functions
-	# TO DO: insert B-spline kernel once derivation complete for 3D
-	def quadratic(r, h):
-		"""Implements a quadratic kernel function with support radius of 2h."""
-		if r/h < 2:
-			return 15.0 / (16 * math.pi * h**3) * ((r/h)**2 / 4 - r/h + 1)
-		else:
-			return 0
-
-	def quadratic_grad(r, h):
-		"""Implements the gradient of a quadratic kernel function with support radius of 2h."""
-		if r/h < 2:
-			return 15.0 / (16 * math.pi * h**4) * (r/h/2 - 1)
-		else:
-			return 0
 	
 	# Calculate important constants
-	m, mu, c_squared, P = compute_derived_parameters(
+	computed_params = compute_derived_parameters(
 									p=p,
 									M=M,
+									h=p['h'],
 									gamma=gamma,
 									rho_0=rho_0,
+									a_max=p['a_max'],
+									v_max=p['v_max'],
+									Re=p['Re'],
 									inter_agent_w=inter_agent_w,
 									attractor_w=attractor_w,
 									obstacle_w=obstacle_w
 	)
+	computed_params['rho_0'] = rho_0
 
 	# Calculate all pairwise force contributions
-	accel = np.zeros((3,))
-	for i in range(len(s)):
-		if me == i: continue
-		accel += inter_agent_w * inter_agent_interaction_force(me, i, sim_params)
-	accel += attractor_w * attractor(me, sim_params)
+	accel = np.zeros((1,3))
+	accel += inter_agent_w * F_fluid(me, s, p, computed_params)
+	accel += attractor_w * F_attractor(me, s, p, computed_params)
 
 	# Add pairwise force contributions to sim state
-	s[me]['x_acc'] = accel[0]
-	s[me]['y_acc'] = accel[1]
-	s[me]['z_acc'] = accel[2]
+	s[me]['x_acc'] = accel[0,0]
+	s[me]['y_acc'] = accel[0,1]
+	s[me]['z_acc'] = accel[0,2]
 
 	# Pack sim state back to JSON format and return
 	return json.dumps(s)
 
+## Basic test case
 if __name__ == '__main__':
 	test_states = '''
 		{
 		"sim_states": [
 			{
 			"a_att": -0.059451295862951926,
-			"agent_name": "",
+			"agent_name": "follower_1",
 			"b_att": 0.6313554259579981,
 			"c_att": -0.33784737388190933,
 			"d_att": 0.69549624117942443,
@@ -148,7 +236,7 @@ if __name__ == '__main__':
 			},
 			{
 			"a_att": -0.16935785127266395,
-			"agent_name": "",
+			"agent_name": "follower_2",
 			"b_att": 0.67795094371989151,
 			"c_att": -0.23361545733955011,
 			"d_att": 0.67610964659117812,
@@ -182,7 +270,7 @@ if __name__ == '__main__':
 			},
 			{
 			"a_att": -0.27464352813515275,
-			"agent_name": "",
+			"agent_name": "follower_3",
 			"b_att": 0.70736876798730342,
 			"c_att": -0.12314225847976866,
 			"d_att": 0.63955949113909805,
@@ -216,7 +304,7 @@ if __name__ == '__main__':
 			},
 			{
 			"a_att": -0.37263949923456846,
-			"agent_name": "",
+			"agent_name": "follower_4",
 			"b_att": 0.71881178468853302,
 			"c_att": -0.0092313230086780926,
 			"d_att": 0.58682553154971517,
@@ -250,7 +338,7 @@ if __name__ == '__main__':
 			},
 			{
 			"a_att": -0.46087028680469622,
-			"agent_name": "",
+			"agent_name": "leader",
 			"b_att": 0.71193973853458925,
 			"c_att": 0.105218413321855,
 			"d_att": 0.51929709505627819,
@@ -285,6 +373,21 @@ if __name__ == '__main__':
 		]
 		}
 	'''
-	r = mac_python('', test_states, '''{"sim_params":{"h":1}}''')
+	test_params = json.dumps({
+		'sim_params': {
+			'h':1000,
+			'Re':20,
+			'a_max':1,
+			'v_max':15,
+			'x_target_pos':0,
+			'y_target_pos':0,
+			'z_target_pos':0
+		}
+	})
+	r = mac_python(
+						'follower_1',
+						test_states,
+						test_params
+					)
 	print("MAC function ran successfully. Test passed. Output:")
 	print(r)
