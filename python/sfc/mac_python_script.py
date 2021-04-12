@@ -193,7 +193,7 @@ def mac_python(node_name, sim_states, sim_params):
 	s[me]['z_acc'] = accel[0,2]
 
 	# Pack sim state back to JSON format and return
-	return json.dumps(s)
+	return json.dumps({'sim_states':s})
 
 ## Basic test case
 if __name__ == '__main__':
