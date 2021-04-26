@@ -1,5 +1,6 @@
 import mac_python_script
 import unittest, math
+import numpy as np
 
 class TestMacPython(unittest.TestCase):
     def test_quadratic_scaling_factor_3d(self):
@@ -9,7 +10,11 @@ class TestMacPython(unittest.TestCase):
         result = mac_python_script.quadratic_scaling_factor_3d(h)
         # 3) Verify the output
         self.assertEqual(result, 3.0/16/math.pi * h**3)
-
+    def test_quadratic(self):
+        for test_value in np.linspace(0.001, 150000000, 100):
+            print(test_value)
+            self.assertEqual(mac_python_script.quadratic(h = test_value, r = 2*test_value), 0)
+       
 if __name__ == '__main__':
     unittest.main()
 

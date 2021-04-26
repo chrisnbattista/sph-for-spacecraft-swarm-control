@@ -30,7 +30,7 @@ def quadratic(r, h):
 	else:
 		return 0
 
-def quadratic_grad(r, h):
+def d_quadratic_dr(r, h):
 	"""Implements the gradient of a quadratic kernel function with support radius of 2h."""
 	if r/h < 2:
 		return 	quadratic_scaling_factor_3d(h) \
@@ -105,13 +105,13 @@ def F_fluid(i, sim_states, sim_params, computed_params):
 		v_ij = v_ijs[j]
 		F_T += - computed_params['m'] \
 				* ( P_i / rho_i**2 + P_j / rho_j**2 ) \
-				* quadratic_grad(r=r_ij, h=sim_params['h']) \
+				* d_quadratic_dr(r=r_ij, h=sim_params['h']) \
 				* pairwise_direction(i, j, sim_states) \
 				+ \
 				computed_params['m'] * 2.0 \
 				* computed_params['mu'] / (rho_i * rho_j) \
 				* v_ij / r_ij \
-				* quadratic_grad(r=r_ij, h=sim_params['h'])
+				* d_quadratic_dr(r=r_ij, h=sim_params['h'])
 	return F_T
 
 def F_attractor(i, sim_states, sim_params, computed_params):
@@ -152,7 +152,7 @@ def compute_derived_parameters(
 	c_squared = a_max \
 					/ (1 + 1/Re) \
 					* (quadratic(r=0, h=h) + quadratic(r=h, h=h))**2 \
-					/ ( quadratic_grad(r=h, h=h) * (2*quadratic(r=h, h=h) - quadratic(r=0, h=h)) )
+					/ ( d_quadratic_dr(r=h, h=h) * (2*quadratic(r=h, h=h) - quadratic(r=0, h=h)) )
 	return {
 		'm': m,
 		'mu': mu,
