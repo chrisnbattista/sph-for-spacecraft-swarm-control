@@ -33,8 +33,6 @@ def quadratic(r, h):
 def d_quadratic_dr(r, h):
 	"""Implements the gradient of a quadratic kernel function with support radius of 2h."""
 	if r/h < 2:
-		print(quadratic_scaling_factor_3d(h) \
-				* (r/h/2 - 1))
 		return 	quadratic_scaling_factor_3d(h) \
 				* (r/h/2 - 1)
 	else:
