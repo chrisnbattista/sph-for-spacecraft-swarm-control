@@ -14,20 +14,18 @@ from sklearn.preprocessing import normalize
 
 # Define kernel scaling factors
 def quadratic_scaling_factor_3d(h):
-	"""Returns the correct scaling factor for the 3D version of the quadratic kernel."""
-	return 3.0/(16*math.pi) * h**3
+	"""Returns the scaling factor for the 3D version of the quadratic kernel. Ref: Song '17 and associated code."""
+	return 15.0 / (16 * math.pi * h**3)
 
 def spline_scaling_factor_3d(h):
-	"""Returns the correct scaling factor for the 3D version of the B-spline kernel."""
-	return 1.0 / (6*math.pi**2) * h**3
+	"""Returns the scaling factor for the 3D version of the B-spline kernel. Ref: Mohaghan '92 and own derivations."""
+	return 1.0/(math.pi * h**3)
 
 # Define the kernel functions
-# TO DO: insert B-spline kernel once derivation complete for 3D
 def quadratic(r, h):
 	"""Implements a quadratic kernel function with support radius of 2h."""
 	if r/h < 2:
 		return 	quadratic_scaling_factor_3d(h) \
-				* 15.0 / (16 * math.pi * h**3) \
 				* ((r/h)**2 / 4 - r/h + 1)
 	else:
 		return 0
@@ -40,6 +38,15 @@ def quadratic_grad(r, h):
 				* (r/h/2 - 1)
 	else:
 		return 0
+
+def cubic_spline(r, h):
+    '''Computes the cubic spline kernel with support radius of 2*h.'''
+    if r > 2*h:
+        return 0
+    elif (r <= 2*h) and (r >= h):
+        return spline_scaling_factor_3d(h) * 0.25 * (2 - r/h)**3
+    else:
+        return spline_scaling_factor_3d(h) * ( 1 - 1.5 * (r/h)**2 * (1 - r/h/2) ) 
 
 # Define the property function
 def pairwise_density(c_squared, rho_0, r_ij, h):
@@ -107,9 +114,16 @@ def F_fluid(i, sim_states, sim_params, computed_params):
 				* quadratic_grad(r=r_ij, h=sim_params['h'])
 	return F_T
 
-# TO DO: insert updated mathematics once spline is ready
 def F_attractor(i, sim_states, sim_params, computed_params):
-	return np.zeros((3,))
+	"""Returns the force from the attractor (target) on agent i."""
+	displacement = np.array([[
+		sim_params['x_target_pos'] - sim_states[i]['x_pos'],
+		sim_params['y_target_pos'] - sim_states[i]['y_pos'],
+		sim_params['z_target_pos'] - sim_states[i]['z_pos'],
+	]])
+	r_itarget = np.linalg.norm(displacement)
+	direction_itarget = normalize(displacement)
+	return direction_itarget * cubic_spline(r_itarget, sim_params['h'])
 
 # Define initial calculation of important constants
 def compute_derived_parameters(
@@ -149,7 +163,7 @@ def mac_python(node_name, sim_states, sim_params):
 	'''Computes the Multi-Agent Control (MAC) algorithm for one agent.
 
 	Expects sim_states to contain x,y,z positions and velocities for all agents.
-	Expects sim_params to contain: h, Re, a_max, v_max, x_target_pos, y_target_pos, z_target_pos.'''
+	Expects sim_params to contain: h, Re, a_max, v_max, x_target_pos, y_target_pos, z_target_pos, accel_cap.'''
 
 	# Fixed parameters
 	M = 1
@@ -160,11 +174,11 @@ def mac_python(node_name, sim_states, sim_params):
 	obstacle_w = 1 # not used in benchmark
 
 	# Load data from JSON
-	p = json.loads(sim_params)['sim_params']
+	p = json.loads(sim_params)['sim_params'][0] # @ Jim: added to follow your changes in master branch. is sim_params an array with one dictionary in it?
 	s = json.loads(sim_states)['sim_states']
 
 	# Find self in data
-	me = next(x for x in range(len(s)) if s[x]['agent_name'] == node_name)
+	me = next(x for x in range(len(s)) if s[x]['node_name'] == node_name)
 	
 	# Calculate important constants
 	computed_params = compute_derived_parameters(
@@ -187,6 +201,9 @@ def mac_python(node_name, sim_states, sim_params):
 	accel += inter_agent_w * F_fluid(me, s, p, computed_params)
 	accel += attractor_w * F_attractor(me, s, p, computed_params)
 
+	# Cap acceleration at physically reasonable value based on spacecraft capabilities.
+	accel = np.clip(accel, -p['accel_cap'], p['accel_cap'])
+
 	# Add pairwise force contributions to sim state
 	s[me]['x_acc'] = accel[0,0]
 	s[me]['y_acc'] = accel[0,1]
@@ -197,197 +214,62 @@ def mac_python(node_name, sim_states, sim_params):
 
 ## Basic test case
 if __name__ == '__main__':
-	test_states = '''
+
+	## Test a two-particle case
+	sep = 1000
+	test_states = json.dumps(
 		{
-		"sim_states": [
-			{
-			"a_att": -0.059451295862951926,
-			"agent_name": "follower_1",
-			"b_att": 0.6313554259579981,
-			"c_att": -0.33784737388190933,
-			"d_att": 0.69549624117942443,
-			"node_name": "mothership",
-			"t_acc": 59270.949710648223,
-			"t_pos": 59270.949710648223,
-			"t_vel": 59270.949710648223,
-			"target_latitude": 0,
-			"target_longitude": 0,
-			"x_acc": 7.9793239868909893,
-			"x_alpha": 0,
-			"x_omega": 0.00037536013529212335,
-			"x_pos": -6224890.2755624885,
-			"x_thrust": 0,
-			"x_torque": 0,
-			"x_vel": -1633.0830316286583,
-			"y_acc": -3.4307682344733443,
-			"y_alpha": 0,
-			"y_omega": 0.00082906087585329403,
-			"y_pos": 2676495.7579533551,
-			"y_thrust": 0,
-			"y_torque": 0,
-			"y_vel": -4201.7353647754753,
-			"z_acc": -0.2221219420000671,
-			"z_alpha": 0,
-			"z_omega": 0.00066445406074924166,
-			"z_pos": 172850.17766930754,
-			"z_thrust": 0,
-			"z_torque": 0,
-			"z_vel": 6165.5832200356735
-			},
-			{
-			"a_att": -0.16935785127266395,
-			"agent_name": "follower_2",
-			"b_att": 0.67795094371989151,
-			"c_att": -0.23361545733955011,
-			"d_att": 0.67610964659117812,
-			"node_name": "daughter_01",
-			"t_acc": 59270.949710648223,
-			"t_pos": 59270.949710648223,
-			"t_vel": 59270.949710648223,
-			"target_latitude": 0,
-			"target_longitude": 0,
-			"x_acc": 8.6524890902684852,
-			"x_alpha": 0,
-			"x_omega": 9.770719677650105e-05,
-			"x_pos": -6750096.0060347412,
-			"x_thrust": 0,
-			"x_torque": 0,
-			"x_vel": -212.58284520205268,
-			"y_acc": -0.74942210701775536,
-			"y_alpha": 0,
-			"y_omega": 0.00090440590972613042,
-			"y_pos": 584725.67400556244,
-			"y_thrust": 0,
-			"y_torque": 0,
-			"y_vel": -4507.7213659530298,
-			"z_acc": -0.24724947680554785,
-			"z_alpha": 0,
-			"z_omega": 0.00066500857307542883,
-			"z_pos": 192413.57262490701,
-			"z_thrust": 0,
-			"z_torque": 0,
-			"z_vel": 6162.0689150611315
-			},
-			{
-			"a_att": -0.27464352813515275,
-			"agent_name": "follower_3",
-			"b_att": 0.70736876798730342,
-			"c_att": -0.12314225847976866,
-			"d_att": 0.63955949113909805,
-			"node_name": "daughter_02",
-			"t_acc": 59270.949710648223,
-			"t_pos": 59270.949710648223,
-			"t_vel": 59270.949710648223,
-			"target_latitude": 0,
-			"target_longitude": 0,
-			"x_acc": 8.448874352927584,
-			"x_alpha": 0,
-			"x_omega": -0.00018959018512271361,
-			"x_pos": -6591361.1240350502,
-			"x_thrust": 0,
-			"x_torque": 0,
-			"x_vel": 1231.7964376999396,
-			"y_acc": 2.0074401125236196,
-			"y_alpha": 0,
-			"y_omega": 0.00088926450585965296,
-			"y_pos": -1565977.7156856135,
-			"y_thrust": 0,
-			"y_torque": 0,
-			"y_vel": -4346.434773545333,
-			"z_acc": -0.27069517338684312,
-			"z_alpha": 0,
-			"z_omega": 0.00066557330921796377,
-			"z_pos": 210591.23963140105,
-			"z_thrust": 0,
-			"z_torque": 0,
-			"z_vel": 6158.4549100783197
-			},
-			{
-			"a_att": -0.37263949923456846,
-			"agent_name": "follower_4",
-			"b_att": 0.71881178468853302,
-			"c_att": -0.0092313230086780926,
-			"d_att": 0.58682553154971517,
-			"node_name": "daughter_03",
-			"t_acc": 59270.949710648223,
-			"t_pos": 59270.949710648223,
-			"t_vel": 59270.949710648223,
-			"target_latitude": 0,
-			"target_longitude": 0,
-			"x_acc": 7.3892231107864497,
-			"x_alpha": 0,
-			"x_omega": -0.00045778975407918988,
-			"x_pos": -5764869.1062101023,
-			"x_thrust": 0,
-			"x_torque": 0,
-			"x_vel": 2550.3199241220441,
-			"y_acc": 4.5602137492938581,
-			"y_alpha": 0,
-			"y_omega": 0.0007851499084135697,
-			"y_pos": -3557694.8608533377,
-			"y_thrust": 0,
-			"y_torque": 0,
-			"y_vel": -3734.4245988819953,
-			"z_acc": -0.29235427403831471,
-			"z_alpha": 0,
-			"z_omega": 0.00066609006662330826,
-			"z_pos": 227414.40325906681,
-			"z_thrust": 0,
-			"z_torque": 0,
-			"z_vel": 6155.0481203629579
-			},
-			{
-			"a_att": -0.46087028680469622,
-			"agent_name": "leader",
-			"b_att": 0.71193973853458925,
-			"c_att": 0.105218413321855,
-			"d_att": 0.51929709505627819,
-			"node_name": "daughter_04",
-			"t_acc": 59270.949710648223,
-			"t_pos": 59270.949710648223,
-			"t_vel": 59270.949710648223,
-			"target_latitude": 0,
-			"target_longitude": 0,
-			"x_acc": 5.5818531802414375,
-			"x_alpha": 0,
-			"x_omega": -0.00068005906017447792,
-			"x_pos": -4354467.6443575686,
-			"x_thrust": 0,
-			"x_torque": 0,
-			"x_vel": 3606.2647141271455,
-			"y_acc": 6.6506949577445802,
-			"y_alpha": 0,
-			"y_omega": 0.00060247589319035132,
-			"y_pos": -5188651.6569497762,
-			"y_thrust": 0,
-			"y_torque": 0,
-			"y_vel": -2734.9527499245196,
-			"z_acc": -0.3124396993806704,
-			"z_alpha": 0,
-			"z_omega": 0.00066650444956729696,
-			"z_pos": 243051.36340820932,
-			"z_thrust": 0,
-			"z_torque": 0,
-			"z_vel": 6152.1269267466769
-			}
-		]
+			"sim_states": [
+				{
+					"node_name": "mothership",
+					"x_acc": 0,
+					"x_pos": 0,
+					"x_vel": 0,
+					"y_acc": 0,
+					"y_pos": 0,
+					"y_vel": 0,
+					"z_acc": 0,
+					"z_pos": 0,
+					"z_vel": 0
+				},
+				{
+					"node_name": "follower",
+					"x_acc": 0,
+					"x_pos": sep,
+					"x_vel": 0,
+					"y_acc": 0,
+					"y_pos": 0,
+					"y_vel": 0,
+					"z_acc": 0,
+					"z_pos": 0,
+					"z_vel": 0
+				}
+			]
 		}
-	'''
-	test_params = json.dumps({
-		'sim_params': {
-			'h':1000,
-			'Re':20,
-			'a_max':1,
-			'v_max':15,
-			'x_target_pos':0,
-			'y_target_pos':0,
-			'z_target_pos':0
+	)
+
+	# @ Jim: I changed this to this interesting data structure as implied by the master-branch code you sent. Lmk if this was not correct.
+	test_params = json.dumps(
+		{
+			'sim_params': [
+				{
+					'h':1000,
+					'Re':20,
+					'a_max':1,
+					'v_max':15,
+					'x_target_pos':0,
+					'y_target_pos':0,
+					'z_target_pos':0,
+					'accel_cap':0.03
+				}
+			]
 		}
-	})
+	)
 	r = mac_python(
-						'follower_1',
+						'follower',
 						test_states,
 						test_params
 					)
+
 	print("MAC function ran successfully. Test passed. Output:")
 	print(r)

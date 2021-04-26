@@ -15,5 +15,12 @@ if __name__ == '__main__':
 
 
 
+max_i = 10
+epsilon = 0.001
+def exponential_func(i):
+    return i^2 + epsilon
+max_func_val = exponential_func(max_i)
+scaling_factor = 15e7 / max_func_val
 
-
+for i in range(max_i):
+    value = scaling_factor * exponential_func(i)
