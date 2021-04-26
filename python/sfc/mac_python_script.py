@@ -265,11 +265,18 @@ if __name__ == '__main__':
 			]
 		}
 	)
-	r = mac_python(
+	follower_state = mac_python(
 						'follower',
 						test_states,
 						test_params
 					)
+	mothership_state = mac_python(
+						'mothership',
+						test_states,
+						test_params
+					)
 
-	print("MAC function ran successfully. Test passed. Output:")
-	print(r)
+	print("MAC function ran successfully. Test passed. State (follower):")
+	print(follower_state)
+	print("State (mothership):")
+	print(mothership_state)
