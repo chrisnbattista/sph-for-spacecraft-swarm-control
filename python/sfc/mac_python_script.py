@@ -255,7 +255,7 @@ if __name__ == '__main__':
 				{
 					'h':1000,
 					'Re':20,
-					'a_max':1,
+					'a_max':0.03,
 					'v_max':15,
 					'x_target_pos':0,
 					'y_target_pos':0,
