@@ -202,7 +202,8 @@ def mac_python(node_name, sim_states, sim_params):
 	accel += attractor_w * F_attractor(me, s, p, computed_params)
 
 	# Cap acceleration at physically reasonable value based on spacecraft capabilities.
-	accel = np.clip(accel, -p['accel_cap'], p['accel_cap'])
+	if(np.linalg.norm(accel)) > p['accel_cap']:
+		accel = normalize(accel) * p['accel_cap']
 
 	# Add pairwise force contributions to sim state
 	s[me]['x_acc'] = accel[0,0]
@@ -235,10 +236,10 @@ if __name__ == '__main__':
 				{
 					"node_name": "follower",
 					"x_acc": 0,
-					"x_pos": sep,
+					"x_pos": sep / 1.4,
 					"x_vel": 0,
 					"y_acc": 0,
-					"y_pos": 0,
+					"y_pos": sep / 1.4,
 					"y_vel": 0,
 					"z_acc": 0,
 					"z_pos": 0,
