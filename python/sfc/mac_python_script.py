@@ -377,7 +377,7 @@ if __name__ == '__main__':
 		'sim_params': {
 			'h':1000,
 			'Re':20,
-			'a_max':1,
+			'a_max':1*10**-5,
 			'v_max':15,
 			'x_target_pos':0,
 			'y_target_pos':0,

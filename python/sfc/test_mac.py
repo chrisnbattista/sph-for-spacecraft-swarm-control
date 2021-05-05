@@ -11,9 +11,9 @@ class TestMacPython(unittest.TestCase):
         # 3) Verify the output
         self.assertEqual(result, 3.0/16/math.pi * h**3)
     def test_quadratic(self):
-        for test_value in np.linspace(0.001, 150000000, 100):
-            print(test_value)
-            self.assertEqual(mac_python_script.quadratic(h = test_value, r = 2*test_value), 0)
+        for test_h in np.linspace(0.001, 1.5E8, 100):
+            print(test_h)
+            self.assertEqual(mac_python_script.quadratic(h = test_h, r = 2*test_h), 0)
        
 if __name__ == '__main__':
     unittest.main()
