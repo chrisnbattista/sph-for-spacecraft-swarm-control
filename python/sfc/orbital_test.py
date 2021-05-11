@@ -3,6 +3,8 @@
 # Import libraries
 import numpy as np
 import pandas as pd
+import scipy
+import itertools
 import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -34,9 +36,9 @@ translation_table = {
 
 # Initialize the mission parameters for MAC
 mac_mission_params = {
-    'internode_distance':5000,
+    'internode_distance':1400000,
     'Re':20,
-    'a_max':0.03,
+    'a_max':0.3,
     'v_max':15,
     'M':1,
     'gamma':1,
@@ -68,27 +70,31 @@ initial_state = sim.generate_generic_ic(
 )
 
 # Initialize Python testbed simulator
-STEPS_TO_RUN = 100
+STEPS_TO_RUN = 5000
 sim_world = worlds.World(
     initial_state=initial_state,
     spatial_dims=3,
     n_agents=5,
-    # controllers=[
-    #     SPHController(
-    #         name=translation_table['id'][i],
-    #         params=cosmos_compatible_mac_mission_params,
-    #         translation_table=translation_table
-    #     ) for i in range(len(translation_table['id']))],
+    controllers=[
+        SPHController(
+            name=translation_table['id'][i],
+            params=cosmos_compatible_mac_mission_params,
+            translation_table=translation_table
+        ) for i in range(len(translation_table['id']))],
     forces=[forces.gravity],
     n_timesteps=STEPS_TO_RUN+1,
     timestep=1
 )
 sim_world.advance_state(STEPS_TO_RUN)
 
-# Set up figure
+# Set up orbit figure
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.view_init(30, 185)
+
+# Set up plots figure
+plot_fig = plt.figure()
+plot_ax = plot_fig.add_subplot(111)
 
 # Plot Earth sphere
 u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
@@ -102,10 +108,25 @@ ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'
 
 # Visualize satellite swarm orbit data
 traj = sim_world.get_history()[:, worlds.pos[3]]
-satellite_pt_colors = ['red', 'orange', 'blue', 'yellow', 'purple'] * int(traj.shape[0]/5)
+satellite_pt_colors = list(itertools.chain(*[
+        (
+            np.array((1,0,0,i)),
+            np.array((0.5, 0.5, 0, i)),
+            np.array((0, 0.5, 0.5, i)),
+            np.array((0.5, 0, 0.5, i)),
+            np.array((0.33, 0.33, 0.33, i))
+        ) for i in np.geomspace(0.001, 1, int(traj.shape[0]/5))
+    ]))
 ax.scatter(traj[:,0], traj[:,1],traj[:,2], c=satellite_pt_colors, s=8, marker='^')
 
-# make simple, bare axis lines through space:
+# Calculate and plot inter-agent distances
+distances = np.array([scipy.spatial.distance.pdist(obs) for obs in traj.reshape(-1, 5, traj.shape[1])])
+##distances = distances[:, np.all(distances < (mac_mission_params['internode_distance']/0.5858), axis=0)]
+plot_ax.hlines(mac_mission_params['internode_distance'], 0, STEPS_TO_RUN, linestyles='dotted')
+for i in range(distances.shape[1]):
+    plot_ax.plot(distances[:,i])
+
+# Make simple, bare axis lines through space:
 xAxisLine = ((min(data['I_position (m)'])/10, max(data['I_position (m)'])/10), (0, 0), (0,0))
 ax.plot(xAxisLine[0], xAxisLine[1], xAxisLine[2], 'gray')
 yAxisLine = ((0, 0), (min(data['J_position (m)'])/10, max(data['J_position (m)'])/10), (0,0))
@@ -113,7 +134,8 @@ ax.plot(yAxisLine[0], yAxisLine[1], yAxisLine[2], 'gray')
 zAxisLine = ((0, 0), (0,0), (min(data['K_position (m)'])/10, max(data['K_position (m)'])/10))
 ax.plot(zAxisLine[0], zAxisLine[1], zAxisLine[2], 'gray')
  
-# label the axes
+# Label the axes etc for orbit plot
+ax.set_box_aspect([1,1,1])
 ax.xaxis._axinfo["grid"].update({"linewidth":0})
 ax.yaxis._axinfo["grid"].update({"linewidth":0})
 ax.zaxis._axinfo["grid"].update({"linewidth":0})
@@ -121,5 +143,10 @@ ax.set_xlabel("ECI î")
 ax.set_ylabel("ECI ĵ")
 ax.set_zlabel("ECI k̂")
 ax.set_title("Test of MAC following chain-of-pearls attractors on ISS orbit line")
+
+# Label the axes etc for separations plot
+plot_ax.set_xlabel("Time (sec)")
+plot_ax.set_ylabel("Separation distance (m)")
+plot_ax.set_title("Separation distances over time")
 
 plt.show()
