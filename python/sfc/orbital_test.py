@@ -6,12 +6,20 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from multi_agent_kinetics import worlds
+from multi_agent_kinetics import worlds, sim
 from cosmos_wrapper import SPHController
+from multi_agent_kinetics import forces
 
 # Load ISS orbit data
 data = pd.read_csv('./uhm_hcl/data/orbit_data2_ijk.csv', index_col=None)
 EARTH_RAD = 6371000
+
+# Define delay function
+def orbital_delay(iss_data, row, delay):
+    '''Given a row in iss_data, find the row that corresponds to the given delay in seconds.'''
+    return iss_data.iloc[int(row+delay)] # unfinished
+
+# Define constraint to map ISS acceleration into propagator?
 
 # Initialize foreign key translations between iCOSMOS and MAK
 translation_table = {
@@ -39,28 +47,50 @@ mac_mission_params = {
     'x_target_pos':0,
     'y_target_pos':0,
     'z_target_pos':0
-    }
+}
+cosmos_compatible_mac_mission_params = {
+    'sim_params':mac_mission_params
+}
+
+# Generate initial state by delaying ISS data
+initial_state = sim.generate_generic_ic(
+    [
+        ( # id and time are auto-generated
+            1, # mass
+            orbital_delay(data, 0, i * 7*60)['I_position (m)'], # delayed position X3
+            orbital_delay(data, 0, i * 7*60)['J_position (m)'],
+            orbital_delay(data, 0, i * 7*60)['K_position (m)'],
+            orbital_delay(data, 0, i * 7*60)['I_velocity (m/s)'], # delayed position's velocity X3
+            orbital_delay(data, 0, i * 7*60)['J_velocity (m/s)'],
+            orbital_delay(data, 0, i * 7*60)['K_velocity (m/s)']
+        ) for i in range(5)
+    ]
+)
 
 # Initialize Python testbed simulator
+STEPS_TO_RUN = 100
 sim_world = worlds.World(
+    initial_state=initial_state,
     spatial_dims=3,
     n_agents=5,
-    controllers=[
-        SPHController(
-            name=translation_table['id'][i],
-            params=mac_mission_params,
-            translation_table=translation_table
-        ) for i in range(len(translation_table['id']))],
-    n_timesteps=10000,
-    timestep=10
+    # controllers=[
+    #     SPHController(
+    #         name=translation_table['id'][i],
+    #         params=cosmos_compatible_mac_mission_params,
+    #         translation_table=translation_table
+    #     ) for i in range(len(translation_table['id']))],
+    forces=[forces.gravity],
+    n_timesteps=STEPS_TO_RUN+1,
+    timestep=1
 )
+sim_world.advance_state(STEPS_TO_RUN)
 
 # Set up figure
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.view_init(30, 185)
 
-# plot Earth sphere
+# Plot Earth sphere
 u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
 x = np.cos(u)*np.sin(v) * EARTH_RAD
 y = np.sin(u)*np.sin(v) * EARTH_RAD
@@ -68,7 +98,12 @@ z = np.cos(v) * EARTH_RAD
 ax.plot_wireframe(x, y, z, colors="gray", linewidths=0.5, alpha=0.4)
 
 # Visualize ISS orbit data
-ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'], c='g', s=1, alpha=0.7)
+ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'], c='g', s=1, alpha=0.01)
+
+# Visualize satellite swarm orbit data
+traj = sim_world.get_history()[:, worlds.pos[3]]
+satellite_pt_colors = ['red', 'orange', 'blue', 'yellow', 'purple'] * int(traj.shape[0]/5)
+ax.scatter(traj[:,0], traj[:,1],traj[:,2], c=satellite_pt_colors, s=8, marker='^')
 
 # make simple, bare axis lines through space:
 xAxisLine = ((min(data['I_position (m)'])/10, max(data['I_position (m)'])/10), (0, 0), (0,0))

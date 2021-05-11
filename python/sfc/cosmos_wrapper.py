@@ -5,25 +5,28 @@ import numpy as np
 import mac_python_script
 from multi_agent_kinetics import worlds
 
-def mak_to_cosmos_state(mak_world, translation_table):
+def mak_to_cosmos_state(mak_state, translation_table):
     '''Converts a multi-agent-kinetics world state to an iCOSMOS compatible JSON string. Only works for the standard MAK 3d schema.'''
     data = {'sim_states':[]}
-    mak_state = mak_world.get_state()
     for row in mak_state:
         pos = row[worlds.pos[3]] # 3 for 3D
+        vel = row[worlds.vel[3]]
         data['sim_states'].append(
             {
                 'node_name':translation_table['id'][row[worlds.ID[3]]], # look up the node_name in the foreign key table provided, based on the ID in the row
                 'x_pos':pos[0],
                 'y_pos':pos[1],
-                'z_pos':pos[2]
+                'z_pos':pos[2],
+                'x_vel':vel[0],
+                'y_vel':vel[1],
+                'z_vel':vel[2],
             }
         )
     return json.dumps(data)
 
-def cosmos_to_mak_state(cosmos_world):
+def cosmos_to_mak_state(cosmos_state):
     '''Converts iCOSMOS-compatible JSON string to a multi-agent-kinetics world state array. Only compatible with 3D.'''
-    data = json.loads(cosmos_world)['sim_states']
+    data = json.loads(cosmos_state)['sim_states']
     return data
 
 class SPHController:
@@ -35,10 +38,16 @@ class SPHController:
         self.params = params
         self.jsonified_params = json.dumps(params)
         self.translation_table = translation_table
-    def control(self, world):
+    def control(self, world, context):
         '''Returns forces to exert on controlled agent based on world state.'''
-        cosmos_state = mak_to_cosmos_state(world.state, self.translation_table)
-        modified_cosmos_state = mac_python_script.mac_python(self.name, cosmos_state, self.jsonified_params)
+        cosmos_state = mak_to_cosmos_state(world.get_state(), self.translation_table)
+        modified_cosmos_state = json.loads(
+            mac_python_script.mac_python(
+                node_name=self.name,
+                sim_states=cosmos_state,
+                sim_params=self.jsonified_params
+                )
+        )
         control_agent_cosmos_state = next((x for x in modified_cosmos_state['sim_states'] if x['node_name']==self.name))
         diff_accel = np.array((
             control_agent_cosmos_state['x_acc_diff'],
