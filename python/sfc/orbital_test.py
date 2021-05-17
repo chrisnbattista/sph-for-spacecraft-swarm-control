@@ -115,7 +115,7 @@ satellite_pt_colors = list(itertools.chain(*[
             np.array((0, 0.5, 0.5, i)),
             np.array((0.5, 0, 0.5, i)),
             np.array((0.33, 0.33, 0.33, i))
-        ) for i in np.geomspace(0.001, 1, int(traj.shape[0]/5))
+        ) for i in np.geomspace(0.00001, 1, int(traj.shape[0]/5))
     ]))
 ax.scatter(traj[:,0], traj[:,1],traj[:,2], c=satellite_pt_colors, s=8, marker='^')
 
