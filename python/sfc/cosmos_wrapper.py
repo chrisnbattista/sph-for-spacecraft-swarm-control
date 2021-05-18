@@ -2,6 +2,7 @@
 
 import json
 import numpy as np
+from copy import deepcopy
 import mac_python_script
 from multi_agent_kinetics import worlds
 
@@ -30,22 +31,28 @@ def cosmos_to_mak_state(cosmos_state):
     return data
 
 class SPHController:
-    def __init__(self, name, params, translation_table):
+    def __init__(self, name, params, translation_table, attractor=None):
         '''params = dictionary to JSONify and send to mac_python function calls as sim_params.
             name = node_name for referencing iCOSMOs data.
             translation_table = a mapping between MAK columns and iCOSMOS fields.'''
         self.name = name
-        self.params = params
-        self.jsonified_params = json.dumps(params)
+        self.params = deepcopy(params)
         self.translation_table = translation_table
+        self.attractor = attractor
+
     def control(self, world, context):
         '''Returns forces to exert on controlled agent based on world state.'''
-        cosmos_state = mak_to_cosmos_state(world.get_state(), self.translation_table)
+        s = world.get_state()
+        p = self.attractor(s[0,worlds.time[3]])
+        self.params['sim_params']['x_target_pos'] = p[0]
+        self.params['sim_params']['y_target_pos'] = p[1]
+        self.params['sim_params']['z_target_pos'] = p[2]
+        cosmos_state = mak_to_cosmos_state(s, self.translation_table)
         modified_cosmos_state = json.loads(
             mac_python_script.mac_python(
                 node_name=self.name,
                 sim_states=cosmos_state,
-                sim_params=self.jsonified_params
+                sim_params=json.dumps(self.params)
                 )
         )
         control_agent_cosmos_state = next((x for x in modified_cosmos_state['sim_states'] if x['node_name']==self.name))

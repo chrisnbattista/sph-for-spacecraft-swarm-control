@@ -39,13 +39,13 @@ def d_quadratic_dr(r, h):
 		return 0
 
 def cubic_spline(r, h):
-    '''Computes the cubic spline kernel with support radius of 2*h.'''
-    if r > 2*h:
-        return 0
-    elif (r <= 2*h) and (r >= h):
-        return spline_scaling_factor_3d(h) * 0.25 * ((2.0 - (r/h))**3)
-    else:
-        return spline_scaling_factor_3d(h) * ( 1.0 - (1.5 * ((r/h)**2) * (1.0 - (r/h/2))) ) 
+	'''Computes the cubic spline kernel with support radius of 2*h.'''
+	if r > 2*h:
+		return 0
+	elif (r <= 2*h) and (r >= h):
+		return spline_scaling_factor_3d(h) * 0.25 * ((2.0 - (r/h))**3)
+	else:
+		return spline_scaling_factor_3d(h) * ( 1.0 - (1.5 * ((r/h)**2) * (1.0 - (r/h/2))) ) 
 
 # Define the property function
 def pairwise_density(c_squared, rho_0, r_ij, h):
@@ -122,7 +122,7 @@ def F_attractor(i, sim_states, sim_params, computed_params):
 	]])
 	r_itarget = np.linalg.norm(displacement)
 	direction_itarget = normalize(displacement)
-	return direction_itarget * cubic_spline(r_itarget, sim_params['h'])
+	return direction_itarget * cubic_spline(r_itarget, sim_params['h_attractor'])
 
 # Define initial calculation of important constants
 def compute_derived_parameters(p):
@@ -156,14 +156,11 @@ def mac_python(node_name, sim_states, sim_params):
 	'''Computes the Multi-Agent Control (MAC) algorithm for one agent.
 
 	Expects sim_states to contain x,y,z positions and velocities for all agents.
-	Expects sim_params to contain: h, Re, a_max, v_max, x_target_pos, y_target_pos, z_target_pos.'''
+	Expects sim_params to contain: h, h_attractor, Re, a_max, v_max, x_target_pos, y_target_pos, z_target_pos.'''
 
 	# Load data from JSON
 	p = json.loads(sim_params)['sim_params'] # @ Jim: adjusted per guidance
 	s = json.loads(sim_states)['sim_states']
-
-	# Augment data
-	p['h'] = (p['internode_distance'] / 0.5858) # Song et al 2017 OE
 
 	# Find self in data
 	me = next(x for x in range(len(s)) if s[x]['node_name'] == node_name)
