@@ -17,9 +17,17 @@ def quadratic_scaling_factor_3d(h):
 	"""Returns the scaling factor for the 3D version of the quadratic kernel. Ref: Song '17 and associated code."""
 	return 15.0 / (16.0 * math.pi * (h**3))
 
+def d_quadratic_scaling_factor_3d(h):
+	'''Returns the derivative of the scaling factor for quadratic kernel.'''
+	return 15.0 / (-3.0 * 16.0 * math.pi * (h**4))
+
 def spline_scaling_factor_3d(h):
 	"""Returns the scaling factor for the 3D version of the B-spline kernel. Ref: Mohaghan '92 and own derivations."""
 	return 1.0/(math.pi * (h**3))
+
+def d_spline_scaling_factor_3d(h):
+	"""Returns the derivative of the scaling factor for the 3D version of the B-spline kernel. Ref: Mohaghan '92 and own derivations."""
+	return -3.0/(math.pi * (h**4))
 
 # Define the kernel functions
 def quadratic(r, h):
@@ -33,7 +41,7 @@ def quadratic(r, h):
 def d_quadratic_dr(r, h):
 	"""Implements the gradient of a quadratic kernel function with support radius of 2h."""
 	if r/h < 2:
-		return 	quadratic_scaling_factor_3d(h) \
+		return 	d_quadratic_scaling_factor_3d(h) \
 				* ((r/h/2) - 1)
 	else:
 		return 0
@@ -43,11 +51,24 @@ def cubic_spline(r, h):
 	if r > 2*h:
 		return 0
 	elif (r <= 2*h) and (r >= h):
-		return spline_scaling_factor_3d(h) * 0.25 * ((2.0 - (r/h))**3)
+		return spline_scaling_factor_3d(h) \
+			* 0.25 * ((2.0 - (r/h))**3)
 	else:
-		return spline_scaling_factor_3d(h) * ( 1.0 - (1.5 * ((r/h)**2) * (1.0 - (r/h/2))) ) 
+		return spline_scaling_factor_3d(h) \
+			* ( 1.0 - (1.5 * ((r/h)**2) * (1.0 - (r/h/2))) ) 
 
-# Define the property function
+def d_cublic_spline_dr(r, h):
+	'''Computes the gradient of the cubic spline kernel function.'''
+	if r < h:
+		return ( d_spline_scaling_factor_3d(h) \
+			* ( (r/h) - ((3.0/4.0)*(r/h)**2) ) )
+	elif r <= 2*h:
+		return ( d_spline_scaling_factor_3d(h) \
+			* ( (1/4.0)*((2-(r/h))**2) ) )
+	else:
+		return 0
+
+# Define the property functions
 def pairwise_density(c_squared, rho_0, r_ij, h):
 	"""Returns the density at point i that is attributable to a particle that is r_ij away."""
 	return 	c_squared \
@@ -114,15 +135,17 @@ def F_fluid(i, sim_states, sim_params, computed_params):
 	return F_T
 
 def F_attractor(i, sim_states, sim_params, computed_params):
-	"""Returns the force from the attractor (target) on agent i."""
+	"""Returns the force from the attractor (target) on agent i. Based on modification of reduced-density particle force from Song et al OE '17."""
 	displacement = np.array([[
 		sim_params['x_target_pos'] - sim_states[i]['x_pos'],
 		sim_params['y_target_pos'] - sim_states[i]['y_pos'],
 		sim_params['z_target_pos'] - sim_states[i]['z_pos'],
 	]])
-	r_itarget = np.linalg.norm(displacement)
+	r_iattractor = np.linalg.norm(displacement)
 	direction_itarget = normalize(displacement)
-	F = direction_itarget * cubic_spline(r_itarget, sim_params['h_attractor'])
+	F = ( direction_itarget \
+		* ((computed_params['c_a']**2) / cubic_spline(r=0, h=sim_params['h_attractor'])) \
+		* d_cublic_spline_dr(r=r_iattractor, h=sim_params['h_attractor']) )
 	return F
 
 # Define initial calculation of important constants
@@ -147,10 +170,14 @@ def compute_derived_parameters(p):
 					/ (1.0 + (1.0/p['Re'])) \
 					* ((quadratic(r=0, h=p['h']) + quadratic(r=p['h'], h=p['h']))**2) \
 					/ (d_quadratic_dr(r=p['h'], h=p['h']) * ( (2.0*quadratic(r=p['h'], h=p['h'])) - quadratic(r=0, h=p['h']) ) )
+	# This is a new derivation, based on OE '17 but using a_max directly instead of turning radius calculations
+	# It sets the attractor acceleration to half of a_max
+	c_a = np.sqrt( (p['h_attractor'] / 6.0) * p['a_max'] )
 	return {
 		'm': m,
 		'mu': mu,
-		'c_squared': c_squared
+		'c_squared': c_squared,
+		'c_a': c_a
 	}
 
 def mac_python(node_name, sim_states, sim_params):
