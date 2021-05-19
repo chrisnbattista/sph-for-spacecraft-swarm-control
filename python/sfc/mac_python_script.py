@@ -122,7 +122,8 @@ def F_attractor(i, sim_states, sim_params, computed_params):
 	]])
 	r_itarget = np.linalg.norm(displacement)
 	direction_itarget = normalize(displacement)
-	return direction_itarget * cubic_spline(r_itarget, sim_params['h_attractor'])
+	F = direction_itarget * cubic_spline(r_itarget, sim_params['h_attractor'])
+	return F
 
 # Define initial calculation of important constants
 def compute_derived_parameters(p):
@@ -172,7 +173,8 @@ def mac_python(node_name, sim_states, sim_params):
 	# Calculate all pairwise force contributions
 	accel = np.zeros((1,3))
 	accel += p['inter_agent_w'] * F_fluid(me, s, p, computed_params)
-	accel += p['attractor_w'] * F_attractor(me, s, p, computed_params)
+	a_F = p['attractor_w'] * p['a_max'] * F_attractor(me, s, p, computed_params)
+	accel += a_F
 
 	# Cap acceleration at physically reasonable value based on spacecraft capabilities.
 	if(np.linalg.norm(accel)) > p['a_max']:

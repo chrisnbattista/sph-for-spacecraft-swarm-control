@@ -17,8 +17,12 @@ from multi_agent_kinetics import forces
 # Load ISS orbit data
 data = pd.read_csv('./uhm_hcl/data/orbit_data2_ijk.csv', index_col=None)
 EARTH_RAD = 6371000
+
+# Mission parameters
 INTER_SAT_DELAY = 1 * 60 # 1 minute
 TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.1
+STEPS_TO_RUN = 4000
+TIMESTEP = 0.01
 
 # Define delay function
 def orbital_delay(iss_data, row, delay):
@@ -53,15 +57,15 @@ translation_table = {
 # Initialize the mission parameters for MAC
 mac_mission_params = {
     'h':200000,
-    'h_attractor':200000,
+    'h_attractor':70000,
     'Re':20,
-    'a_max':0.03,
-    'v_max':15,
+    'a_max':300,
+    'v_max':1500,
     'M':1,
     'gamma':1,
     'rho_0':1,
     'inter_agent_w':1,
-    'attractor_w':1e18,
+    'attractor_w':1e16,
     'obstacle_w':0,
     'x_target_pos':0,
     'y_target_pos':0,
@@ -85,9 +89,9 @@ initial_state = sim.generate_generic_ic(
         ) for i in range(5)
     ]
 )
+initial_separations = scipy.spatial.distance.pdist(initial_state[:,worlds.pos[3]])
 
 # Initialize Python testbed simulator
-STEPS_TO_RUN = 40000
 sim_world = worlds.World(
     initial_state=initial_state,
     spatial_dims=3,
@@ -101,7 +105,7 @@ sim_world = worlds.World(
         ) for i in range(len(translation_table['id']))],
     forces=[forces.gravity],
     n_timesteps=STEPS_TO_RUN+1,
-    timestep=0.1
+    timestep=TIMESTEP
 )
 for i in tqdm(range(10)):
     sim_world.advance_state(int(STEPS_TO_RUN/10))
@@ -142,7 +146,7 @@ ax.plot_wireframe(x, y, z, colors="gray", linewidths=0.5, alpha=0.4)
 ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'], c='g', s=1, alpha=0.01)
 
 # Visualize satellite swarm orbit data
-traj = sim_world.get_history()[:, worlds.pos[3]][::21]
+traj = sim_world.get_history()[:, worlds.pos[3]]
 satellite_pt_colors = list(itertools.chain(*[
         (
             np.array((1,0,0,i)),
@@ -152,34 +156,32 @@ satellite_pt_colors = list(itertools.chain(*[
             np.array((0.33, 0.33, 0.33, i))
         ) for i in np.geomspace(0.00001, 1, int(traj.shape[0]/5))
     ]))
-ax.scatter(traj[:,0], traj[:,1],traj[:,2], c=satellite_pt_colors, s=8, marker='^')
+ax.scatter(traj[::21,0], traj[::21,1],traj[::21,2], c=satellite_pt_colors[::21], s=8, marker='^')
 
 # Calculate and plot inter-agent distances
-separations = np.sort(
-    np.array(
-        [
-            scipy.spatial.distance.pdist(obs) for obs in traj.reshape(-1, 5, traj.shape[1])
-        ]
-    )
-)
-shortest_separations = separations[:,:4]
+separations = np.zeros((int(traj.shape[0]/5), 11))
+for i in range(0, int(traj.shape[0]/5)):
+    separations[i,0] = i * TIMESTEP
+    separations[i,1:] = scipy.spatial.distance.pdist(traj[i*5:(i+1)*5,:])
+
 ##distances = distances[:, np.all(distances < (mac_mission_params['internode_distance']/0.5858), axis=0)]
 
-# Plot reference distance lines
-
+# Plot reference lines for separations plot
 # h
-plot_ax.hlines(mac_mission_params['h'], 0, STEPS_TO_RUN, linestyles='dotted')
-plot_ax.hlines(mac_mission_params['h_attractor'], 0, STEPS_TO_RUN, linestyles='dotted', colors='green')
+plot_ax.hlines(mac_mission_params['h'], 0, STEPS_TO_RUN*TIMESTEP, linestyles='dotted')
+plot_ax.hlines(mac_mission_params['h_attractor'], 0, STEPS_TO_RUN*TIMESTEP, linestyles='dotted', colors='green')
 # 2h
-plot_ax.hlines(mac_mission_params['h']*2, 0, STEPS_TO_RUN, linestyles='dashed')
-plot_ax.hlines(mac_mission_params['h_attractor']*2, 0, STEPS_TO_RUN, linestyles='dashed', colors='green')
+plot_ax.hlines(mac_mission_params['h']*2, 0, STEPS_TO_RUN*TIMESTEP, linestyles='dashed')
+plot_ax.hlines(mac_mission_params['h_attractor']*2, 0, STEPS_TO_RUN*TIMESTEP, linestyles='dashed', colors='green')
 # attractor's target separation
 target_sep = np.linalg.norm(
     iss_position(data, 0)(0) - iss_position(data, TARGET_INTER_SAT_DELAY)(0)
 )
-plot_ax.hlines(target_sep, 0, STEPS_TO_RUN, linestyles='dashdot')
-for i in range(shortest_separations.shape[1]):
-    plot_ax.plot(shortest_separations[:,i])
+plot_ax.hlines(target_sep, 0, STEPS_TO_RUN*TIMESTEP, linestyles='dashdot')
+
+# Plot separations over time
+for i in range(10):
+    plot_ax.plot(separations[:,0], separations[:,i+1])
 
 # Make simple, bare axis lines through space:
 xAxisLine = ((min(data['I_position (m)'])/10, max(data['I_position (m)'])/10), (0, 0), (0,0))
@@ -203,7 +205,10 @@ ax.set_title("Test of MAC following chain-of-pearls attractors on ISS orbit line
 plot_ax.set_xlabel("Time (sec)")
 plot_ax.set_ylabel("Separation distance (m)")
 plot_ax.set_title("4 shortest separation distances over time\nDashed=2h\nDotted=h")
-print(f'Final separations: {separations}')
+print(f'Initial separations: {initial_separations[-1]}')
+print(f'Final separations: {separations[-1]}')
+print(f'Magnitude of desired separation change: {np.linalg.norm(iss_position(delay=TARGET_INTER_SAT_DELAY, iss_data=data)(0) - iss_position(delay=INTER_SAT_DELAY, iss_data=data)(0))}')
+print(f'Separation changes: {np.array(separations[-1,1:]) - np.array(initial_separations)}')
 
 # Label the axes etc for mission plot
 mission_ax.set_box_aspect([1,1,1])
