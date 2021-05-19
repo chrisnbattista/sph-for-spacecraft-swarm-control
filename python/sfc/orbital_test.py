@@ -16,18 +16,18 @@ from multi_agent_kinetics import forces
 
 # Load ISS orbit data
 data = pd.read_csv('./uhm_hcl/data/orbit_data2_ijk.csv', index_col=None)
-EARTH_RAD = 6371000
+EARTH_RAD = 6371000 # m
 
 # Mission parameters
 INTER_SAT_DELAY = 1 * 60 # 1 minute
-TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.1
-STEPS_TO_RUN = 4000
-TIMESTEP = 0.01
+TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.1 # 10% larger separation - should be achievable in one orbit
+STEPS_TO_RUN = 557160 # one full orbit period
+TIMESTEP = 0.01 # 100 Hz for both simulator physics and controller
 
 # Define delay function
 def orbital_delay(iss_data, row, delay):
     '''Given a row in iss_data, find the row that corresponds to the given delay in seconds.'''
-    delayed_i = int(row+delay) % iss_data.shape[0]
+    delayed_i = (-1) * int(row+delay) % iss_data.shape[0]
     return iss_data.iloc[delayed_i]
 
 def iss_position(iss_data, delay):
@@ -57,15 +57,15 @@ translation_table = {
 # Initialize the mission parameters for MAC
 mac_mission_params = {
     'h':200000,
-    'h_attractor':70000,
+    'h_attractor':100000,
     'Re':20,
-    'a_max':300,
-    'v_max':1500,
+    'a_max':30,
+    'v_max':15,
     'M':1,
     'gamma':1,
     'rho_0':1,
     'inter_agent_w':1,
-    'attractor_w':1e16,
+    'attractor_w':1,
     'obstacle_w':0,
     'x_target_pos':0,
     'y_target_pos':0,
@@ -154,7 +154,7 @@ satellite_pt_colors = list(itertools.chain(*[
             np.array((0, 0.5, 0.5, i)),
             np.array((0.5, 0, 0.5, i)),
             np.array((0.33, 0.33, 0.33, i))
-        ) for i in np.geomspace(0.00001, 1, int(traj.shape[0]/5))
+        ) for i in np.geomspace(0.01, 1, int(traj.shape[0]/5))
     ]))
 ax.scatter(traj[::21,0], traj[::21,1],traj[::21,2], c=satellite_pt_colors[::21], s=8, marker='^')
 
