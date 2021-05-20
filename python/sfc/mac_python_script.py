@@ -88,7 +88,7 @@ def r_ijs_density_and_pressure(i, sim_states, sim_params, computed_params):
 								])
 		rho 	+= computed_params['m'] * quadratic(r=r_ij, h=sim_params['h'])
 		P 		+= (computed_params['c_squared']**2) \
-					* computed_params['rho_0'] \
+					* sim_params['rho_0'] \
 					* ((2.0/3.0) * (quadratic(r=r_ij, h=sim_params['h']) / quadratic(r=0, h=sim_params['h'])) - (1.0/3.0))
 		r_ijs.append(r_ij)
 	return r_ijs, rho, P
@@ -145,7 +145,8 @@ def F_attractor(i, sim_states, sim_params, computed_params):
 	direction_itarget = normalize(displacement)
 	F = ( direction_itarget \
 		* ((computed_params['c_a']**2) / cubic_spline(r=0, h=sim_params['h_attractor'])) \
-		* d_cublic_spline_dr(r=r_iattractor, h=sim_params['h_attractor']) )
+		* d_cublic_spline_dr(r=r_iattractor, h=sim_params['h_attractor']) ) \
+		* computed_params['m'] # because per OE '17 F_i is per unit mass
 	return F
 
 # Define initial calculation of important constants
@@ -195,7 +196,6 @@ def mac_python(node_name, sim_states, sim_params):
 	
 	# Calculate important constants
 	computed_params = compute_derived_parameters(p=p)
-	computed_params['rho_0'] = p['rho_0']
 
 	# Calculate all pairwise force contributions
 	accel = np.zeros((1,3))
