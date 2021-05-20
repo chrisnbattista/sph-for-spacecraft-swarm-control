@@ -21,8 +21,10 @@ EARTH_RAD = 6371000 # m
 # Mission parameters
 INTER_SAT_DELAY = 1 * 60 # 1 minute
 TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.1 # 10% larger separation - should be achievable in one orbit
-STEPS_TO_RUN = 557160 # one full orbit period
+STEPS_TO_RUN = 55000 # approx. one full orbit period. must be divisible by 10 due to progress bar (sim is done in 10 even steps)
 TIMESTEP = 0.01 # 100 Hz for both simulator physics and controller
+
+print(f'Steps to run: {STEPS_TO_RUN}\nTarget delay:{TARGET_INTER_SAT_DELAY}')
 
 # Define delay function
 def orbital_delay(iss_data, row, delay):
@@ -56,10 +58,10 @@ translation_table = {
 
 # Initialize the mission parameters for MAC
 mac_mission_params = {
-    'h':200000,
-    'h_attractor':100000,
+    'h':10000,
+    'h_attractor':4600,
     'Re':20,
-    'a_max':30,
+    'a_max':0.3,
     'v_max':15,
     'M':1,
     'gamma':1,
