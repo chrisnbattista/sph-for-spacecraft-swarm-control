@@ -189,6 +189,7 @@ def mac_python(node_name, sim_states, sim_params):
 
 	# Load data from JSON
 	p = json.loads(sim_params)['sim_params'] # @ Jim: adjusted per guidance
+	if not 'h_attractor' in p: p['h_attractor'] = p['h']
 	s = json.loads(sim_states)['sim_states']
 
 	# Find self in data

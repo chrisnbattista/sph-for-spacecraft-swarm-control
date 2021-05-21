@@ -1,5 +1,7 @@
 # This file uses International Space Station (ISS) orbital data to test the performance of the Multi-Agent Coordination (MAC) system in a Python testbed.
 
+######### IMPORTS ##########
+
 # Import libraries
 from matplotlib import colors
 import numpy as np
@@ -12,7 +14,9 @@ from tqdm import tqdm
 from mpl_toolkits.mplot3d import Axes3D
 from multi_agent_kinetics import worlds, sim
 from cosmos_wrapper import SPHController
-from multi_agent_kinetics import forces
+from multi_agent_kinetics import forces, viz
+
+######### SETUP SIM FROM DATA ##########
 
 # Load ISS orbit data
 data = pd.read_csv('./uhm_hcl/data/orbit_data2_ijk.csv', index_col=None)
@@ -21,10 +25,10 @@ EARTH_RAD = 6371000 # m
 # Mission parameters
 INTER_SAT_DELAY = 1 * 60 # 1 minute
 TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.1 # 10% larger separation - should be achievable in one orbit
-STEPS_TO_RUN = 5500 # approx. one full orbit period. must be divisible by 10 due to progress bar (sim is done in 10 even steps)
+STEPS_TO_RUN = 5560 # 556000 @ TS=0.01 = approx. one full orbit period. must be divisible by 10 due to progress bar (sim is done in 10 even steps)
 TIMESTEP = 0.01 # 100 Hz for both simulator physics and controller
 
-print(f'Steps to run: {STEPS_TO_RUN} @ timestep {TIMESTEP}\nTarget delay: {TARGET_INTER_SAT_DELAY} sec')
+print(f'Steps to run: {STEPS_TO_RUN} @ timestep {TIMESTEP}\nInitial delay: {INTER_SAT_DELAY} sec\nTarget delay: {TARGET_INTER_SAT_DELAY} sec')
 
 # Define delay function
 def orbital_delay(iss_data, row, delay):
@@ -77,6 +81,8 @@ cosmos_compatible_mac_mission_params = {
     'sim_params':mac_mission_params
 }
 
+######### RUN SIM ##########
+
 # Generate initial state by delaying ISS data
 initial_state = sim.generate_generic_ic(
     [
@@ -112,40 +118,38 @@ sim_world = worlds.World(
 for i in tqdm(range(10)):
     sim_world.advance_state(int(STEPS_TO_RUN/10))
 
-# Set up orbit figure
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.view_init(30, 185)
+######### PLOT RESULTS ##########
 
+# Set stylesheet
+plt.style.use('dark_background')
+# Set up orbit and mission overview figures
+orbit_fig, orbit_ax = viz.set_up_3d_plot()
+mission_fig, mission_ax = viz.set_up_3d_plot()
 # Set up plots figure
-plot_fig = plt.figure()
-plot_ax = plot_fig.add_subplot(111)
-##alt_ax = plot_fig.add_subplot(211)
-
-# Set up mission overview figure
-mission_fig = plt.figure()
-mission_ax = mission_fig.add_subplot(111, projection='3d')
+plot_fig, plot_ax = viz.set_up_plot()
 
 # Plot mission overview
-mission_ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'], c='g', s=1, alpha=0.01)
-initial_pos = initial_state[:,worlds.pos[3]]
-mission_ax.scatter(initial_pos[:,0], initial_pos[:,1], initial_pos[:,2], c='red', s=8, marker='^', alpha=1)
-initital_target_pos = np.array(
-    [
-        iss_position(delay=i*TARGET_INTER_SAT_DELAY, iss_data=data)(0) for i in range(5)
-    ]
-)
-mission_ax.scatter(initital_target_pos[:,0], initital_target_pos[:,1], initital_target_pos[:,2], c='blue', marker='x')
+def plot_mission_overview(ax, orbit_x, orbit_y, orbit_z, agent_x, agent_y, agent_z, target_x, target_y, target_z):
+    '''Takes plot axis and numpy arrays for the xyz ECI coordinates of orbit positions, agent positions, and target positions to plot.'''
+    mission_ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'], c='lightgreen', s=1, alpha=0.01)
+    initial_pos = initial_state[:,worlds.pos[3]]
+    mission_ax.scatter(initial_pos[:,0], initial_pos[:,1], initial_pos[:,2], c='red', s=8, marker='^', alpha=1)
+    initital_target_pos = np.array(
+        [
+            iss_position(delay=i*TARGET_INTER_SAT_DELAY, iss_data=data)(0) for i in range(5)
+        ]
+    )
+    mission_ax.scatter(initital_target_pos[:,0], initital_target_pos[:,1], initital_target_pos[:,2], c='blue', marker='x')
 
 # Plot Earth sphere
 u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
 x = np.cos(u)*np.sin(v) * EARTH_RAD
 y = np.sin(u)*np.sin(v) * EARTH_RAD
 z = np.cos(v) * EARTH_RAD
-ax.plot_wireframe(x, y, z, colors="gray", linewidths=0.5, alpha=0.4)
+orbit_ax.plot_wireframe(x, y, z, colors="gray", linewidths=0.5, alpha=0.4)
 
 # Visualize ISS orbit data
-ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'], c='g', s=1, alpha=0.01)
+orbit_ax.scatter(data['I_position (m)'], data['J_position (m)'], data['K_position (m)'], c='lightgreen', s=1, alpha=0.01)
 
 # Visualize satellite swarm orbit data
 traj = sim_world.get_history()[:, worlds.pos[3]]
@@ -158,7 +162,7 @@ satellite_pt_colors = list(itertools.chain(*[
             np.array((0.33, 0.33, 0.33, i))
         ) for i in np.geomspace(0.01, 1, int(traj.shape[0]/5))
     ]))
-ax.scatter(traj[::21,0], traj[::21,1],traj[::21,2], c=satellite_pt_colors[::21], s=8, marker='^')
+orbit_ax.scatter(traj[::21,0], traj[::21,1],traj[::21,2], c=satellite_pt_colors[::21], s=8, marker='^')
 
 # Calculate and plot inter-agent distances
 separations = np.zeros((int(traj.shape[0]/5), 11))
@@ -187,26 +191,26 @@ for i in range(10):
 
 # Make simple, bare axis lines through space:
 xAxisLine = ((min(data['I_position (m)'])/10, max(data['I_position (m)'])/10), (0, 0), (0,0))
-ax.plot(xAxisLine[0], xAxisLine[1], xAxisLine[2], 'gray')
+orbit_ax.plot(xAxisLine[0], xAxisLine[1], xAxisLine[2], 'gray')
 yAxisLine = ((0, 0), (min(data['J_position (m)'])/10, max(data['J_position (m)'])/10), (0,0))
-ax.plot(yAxisLine[0], yAxisLine[1], yAxisLine[2], 'gray')
+orbit_ax.plot(yAxisLine[0], yAxisLine[1], yAxisLine[2], 'gray')
 zAxisLine = ((0, 0), (0,0), (min(data['K_position (m)'])/10, max(data['K_position (m)'])/10))
-ax.plot(zAxisLine[0], zAxisLine[1], zAxisLine[2], 'gray')
+orbit_ax.plot(zAxisLine[0], zAxisLine[1], zAxisLine[2], 'gray')
  
 # Label the axes etc for orbit plot
-ax.set_box_aspect([1,1,1])
-ax.xaxis._axinfo["grid"].update({"linewidth":0})
-ax.yaxis._axinfo["grid"].update({"linewidth":0})
-ax.zaxis._axinfo["grid"].update({"linewidth":0})
-ax.set_xlabel("ECI î")
-ax.set_ylabel("ECI ĵ")
-ax.set_zlabel("ECI k̂")
-ax.set_title("Test of MAC following chain-of-pearls attractors on ISS orbit line")
+orbit_ax.set_box_aspect([1,1,1])
+orbit_ax.xaxis._axinfo["grid"].update({"linewidth":0})
+orbit_ax.yaxis._axinfo["grid"].update({"linewidth":0})
+orbit_ax.zaxis._axinfo["grid"].update({"linewidth":0})
+orbit_ax.set_xlabel("ECI î")
+orbit_ax.set_ylabel("ECI ĵ")
+orbit_ax.set_zlabel("ECI k̂")
+orbit_ax.set_title("Test of MAC following chain-of-pearls attractors on ISS orbit line")
 
 # Label the axes etc for separations plot
 plot_ax.set_xlabel("Time (sec)")
 plot_ax.set_ylabel("Separation distance (m)")
-plot_ax.set_title("4 shortest separation distances over time\nDashed=2h\nDotted=h")
+plot_ax.set_title("Inter-sat separation distances over time\nDashed=2h\nDotted=h")
 print(f'Initial separations: {initial_separations[-1]}')
 print(f'Final separations: {separations[-1]}')
 print(f'Magnitude of desired separation change: {np.linalg.norm(iss_position(delay=TARGET_INTER_SAT_DELAY, iss_data=data)(0) - iss_position(delay=INTER_SAT_DELAY, iss_data=data)(0))}')

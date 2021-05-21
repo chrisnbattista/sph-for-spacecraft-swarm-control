@@ -1,6 +1,3 @@
-[submodule "python/sfc/multi_agent_kinetics"]
-	path = python/sfc/multi_agent_kinetics
+[submodule "multi_agent_kinetics"]
+	path = multi_agent_kinetics
 	url = https://github.com/chrisnbattista/multi-agent-kinetics.git
-[submodule "python/sfc/uhm_hcl"]
-	path = python/sfc/uhm_hcl
-	url = https://github.com/interstel-tech/uhm-hcl.git
