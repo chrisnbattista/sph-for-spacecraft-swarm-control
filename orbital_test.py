@@ -19,7 +19,7 @@ from multi_agent_kinetics import forces, viz
 ######### SETUP SIM FROM DATA ##########
 
 # Load ISS orbit data
-data = pd.read_csv('./uhm_hcl/data/orbit_data2_ijk.csv', index_col=None)
+data = pd.read_csv('./data/orbit_data2_ijk.csv', index_col=None)
 EARTH_RAD = 6371000 # m
 
 # Mission parameters
