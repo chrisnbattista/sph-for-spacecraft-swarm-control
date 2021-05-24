@@ -30,9 +30,9 @@ EARTH_RAD = 6371000 # m
 
 # Mission parameters
 INTER_SAT_DELAY = 1 * 60 # 1 minute
-TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.0 # 10% larger separation - should be achievable in one orbit
-STEPS_TO_RUN = 6000000 # 556000 @ TS=0.01 = approx. one full orbit period. must be divisible by 10 due to progress bar (sim is done in 10 even steps) and 25 due to video
-TIMESTEP = 0.001 # 100 Hz for both simulator physics and controller
+TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 0.95 # 10% larger separation - should be achievable in one orbit
+STEPS_TO_RUN = 60000 # 556000 @ TS=0.01 = approx. one full orbit period. must be divisible by 10 due to progress bar (sim is done in 10 even steps) and 25 due to video
+TIMESTEP = 0.01 # 100 Hz for both simulator physics and controller
 
 # Video parameters
 VIDEO_LENGTH = 10 # sec
@@ -42,20 +42,24 @@ STATES_PER_FRAME = int(STEPS_TO_RUN / (VIDEO_LENGTH * FRAME_RATE))
 print(f'Steps to run: {STEPS_TO_RUN} @ timestep {TIMESTEP}\nInitial delay: {INTER_SAT_DELAY} sec\nTarget delay: {TARGET_INTER_SAT_DELAY} sec')
 
 # Define delay function
-def orbital_delay(iss_data, row, delay):
-    '''Given a row in iss_data, find the row that corresponds to the given delay in seconds.'''
-    delayed_i = math.ceil(row+delay) % iss_data.shape[0]
-    return iss_data.iloc[delayed_i]
-
 def iss_position(iss_data, delay):
-    '''Returns a callback for the properly formatted position on ISS orbit for a particular delay, parameterized by time.'''
+    '''Returns a callback for the properly formatted position on ISS orbit for a particular delay, with callback parameterized by time.'''
     def callback(time):
-        d = orbital_delay(iss_data, math.ceil(time), delay)
-        return np.array([
-            d['I_position (m)'],
-            d['J_position (m)'],
-            d['K_position (m)']
-        ])
+        if delay == 0: print_weighting = False
+        else: print_weighting = False
+        last_time = math.floor(time + delay)
+        next_time = math.ceil(time + delay)
+        if last_time == next_time: return iss_data.iloc[(last_time) % iss_data.shape[0]]
+        last_point = iss_data.iloc[(last_time) % iss_data.shape[0]]
+        #two_points_ago = iss_data.iloc[(last_time - 1) % iss_data.shape[0]]
+        next_point = iss_data.iloc[(next_time) % iss_data.shape[0]]
+        #two_points_ahead = iss_data.iloc[(next_time + 1) % iss_data.shape[0]]
+        weighting = math.modf(time)[0]
+        difference = next_point - last_point
+        interpolation_point = last_point + difference * weighting
+        if print_weighting:
+            print(f'Last time: {last_time}\tNext time: {next_time}\tWeighting: {weighting}')
+        return interpolation_point
     return callback
 
 # Define constraint to map ISS acceleration into propagator?
@@ -76,7 +80,7 @@ mac_mission_params = {
     'h':10000,
     'h_attractor':50000,
     'Re':20,
-    'a_max':3,
+    'a_max':9,
     'v_max':15,
     'M':1,
     'gamma':1,
@@ -99,12 +103,12 @@ initial_state = sim.generate_generic_ic(
     [
         ( # id and time are auto-generated
             1, # mass
-            orbital_delay(data, 0, -(4-i) * INTER_SAT_DELAY)['I_position (m)'], # delayed position X3
-            orbital_delay(data, 0, -(4-i) * INTER_SAT_DELAY)['J_position (m)'],
-            orbital_delay(data, 0, -(4-i) * INTER_SAT_DELAY)['K_position (m)'],
-            orbital_delay(data, 0, -(4-i) * INTER_SAT_DELAY)['I_velocity (m/s)'], # delayed position's velocity X3
-            orbital_delay(data, 0, -(4-i) * INTER_SAT_DELAY)['J_velocity (m/s)'],
-            orbital_delay(data, 0, -(4-i) * INTER_SAT_DELAY)['K_velocity (m/s)']
+            iss_position(data, -(4-i) * INTER_SAT_DELAY)(0)['I_position (m)'], # delayed position X3
+            iss_position(data, -(4-i) * INTER_SAT_DELAY)(0)['J_position (m)'],
+            iss_position(data, -(4-i) * INTER_SAT_DELAY)(0)['K_position (m)'],
+            iss_position(data, -(4-i) * INTER_SAT_DELAY)(0)['I_velocity (m/s)'], # delayed position's velocity X3
+            iss_position(data, -(4-i) * INTER_SAT_DELAY)(0)['J_velocity (m/s)'],
+            iss_position(data, -(4-i) * INTER_SAT_DELAY)(0)['K_velocity (m/s)']
         ) for i in range(5)
     ]
 )
@@ -124,7 +128,7 @@ sim_world = worlds.World(
             name=translation_table['id'][i],
             params=cosmos_compatible_mac_mission_params,
             translation_table=translation_table,
-            attractor=iss_position(delay=-(4-i)*TARGET_INTER_SAT_DELAY, iss_data=data)
+            attractor=iss_position(delay=-(4-i)*TARGET_INTER_SAT_DELAY + TIMESTEP, iss_data=data)
         ) for i in range(len(translation_table['id']))],
     forces=[forces.gravity],
     n_timesteps=STEPS_TO_RUN+1,
@@ -202,7 +206,7 @@ def render_satellites(ax, timestep):
 
 def render_targets(ax, render_time):
     for i in range(5):
-        target = iss_position(delay=-(4-i)*TARGET_INTER_SAT_DELAY, iss_data=data)(render_time)
+        target = iss_position(delay=-(4-i)*TARGET_INTER_SAT_DELAY, iss_data=data)(render_time)[['I_position (m)', 'J_position (m)', 'K_position (m)']]
         ax.scatter(target[0], target[1], target[2], color=satellite_pt_colors[i], marker='x', s=3)
 
 # Visualize swarm orbit data as video and export
@@ -210,8 +214,8 @@ def animate(i):
     state_number = i * STATES_PER_FRAME
     render_satellites(video_ax, state_number)
     render_time = int(state_number * TIMESTEP)
-    target_positions = np.array([iss_position(delay=-(4-i)*TARGET_INTER_SAT_DELAY, iss_data=data)(render_time) for i in range(5)])
-    actual_positions = sim_world.get_history()[state_number:state_number+5,worlds.pos[3]]
+    #target_positions = np.array([iss_position(delay=-(4-i)*TARGET_INTER_SAT_DELAY, iss_data=data)(render_time)[['I_position (m)', 'J_position (m)', 'K_position (m)']] for i in range(5)])
+    #actual_positions = sim_world.get_history()[state_number:state_number+5,worlds.pos[3]]
     #print(target_positions - actual_positions)
     render_targets(video_ax, render_time)
 
@@ -237,14 +241,17 @@ for i in range(0, int(traj.shape[0]/5)):
     separations[i,1:] = (dists[0,1], dists[1,2], dists[2,3], dists[3,4])
 
 # Calculate and plot control errors
+desired_sep_change = np.linalg.norm(iss_position(delay=TARGET_INTER_SAT_DELAY, iss_data=data)(0)[['I_position (m)', 'J_position (m)', 'K_position (m)']] - iss_position(delay=INTER_SAT_DELAY, iss_data=data)(0)[['I_position (m)', 'J_position (m)', 'K_position (m)']])
+desired_sep_mag = np.linalg.norm(iss_position(delay=TARGET_INTER_SAT_DELAY, iss_data=data)(0)[['I_position (m)', 'J_position (m)', 'K_position (m)']])
 errors = np.zeros((int(traj.shape[0]/5), 6))
 for i in range(0, int(traj.shape[0]/5)):
     errors[i,0] = i * TIMESTEP
-    errors[i,1:5] = np.linalg.norm(
-        np.array([iss_position(delay=-(4-j)*TARGET_INTER_SAT_DELAY, iss_data=data)(i * TIMESTEP) for j in range(5)]) \
-        -  sim_world.get_history()[i*5:(i*5)+5,worlds.pos[3]]
-    )
-    
+    for j in range(5):
+        #print(errors[i,0])
+        target = iss_position(delay=-(4-j)*TARGET_INTER_SAT_DELAY, iss_data=data)(errors[i,0])[['I_position (m)', 'J_position (m)', 'K_position (m)']]
+        errors[i,j+1] = np.linalg.norm(target - traj[i*5+j,:])
+
+print(f'Final errors: {errors[-1,1:]}')
 
 ##distances = distances[:, np.all(distances < (mac_mission_params['internode_distance']/0.5858), axis=0)]
 
@@ -257,17 +264,17 @@ for i in range(0, int(traj.shape[0]/5)):
 #plot_ax.hlines(mac_mission_params['h_attractor']*2, 0, STEPS_TO_RUN*TIMESTEP, linestyles='dashed', colors='green')
 # attractor's target separation
 target_sep = np.linalg.norm(
-    iss_position(data, 0)(0) - iss_position(data, TARGET_INTER_SAT_DELAY)(0)
+    iss_position(data, 0)(0)[['I_position (m)', 'J_position (m)', 'K_position (m)']] - iss_position(data, TARGET_INTER_SAT_DELAY)(0)[['I_position (m)', 'J_position (m)', 'K_position (m)']]
 )
-plot_ax.hlines(target_sep, 0, STEPS_TO_RUN*TIMESTEP, linestyles='dashdot')
+plot_ax.hlines(target_sep, 0, STEPS_TO_RUN*TIMESTEP, linestyles='dashdot', color='red')
 
 # Plot separations over time
 for i in range(4):
-    plot_ax.plot(separations[:,0], separations[:,i+1])
+    plot_ax.plot(separations[:,0], separations[:,i+1], color=satellite_pt_colors[i])
 
 # Plot errors over time
 for i in range(4):
-    errors_ax.plot(errors[:,0], errors[:,i+1])
+    errors_ax.plot(errors[:,0], errors[:,i+1], color=satellite_pt_colors[i])
 
 # Make simple, bare axis lines through space:
 # xAxisLine = ((min(data['I_position (m)'])/10, max(data['I_position (m)'])/10), (0, 0), (0,0))
@@ -293,8 +300,13 @@ plot_ax.set_ylabel("Separation distance (m)")
 plot_ax.set_title("Inter-sat separation distances over time")
 print(f'Initial separations: {initial_separations}')
 print(f'Final separations: {separations[-1,1:]}')
-print(f'Magnitude of desired separation change: {np.linalg.norm(iss_position(delay=TARGET_INTER_SAT_DELAY, iss_data=data)(0) - iss_position(delay=INTER_SAT_DELAY, iss_data=data)(0))}')
+print(f'Magnitude of desired separation change: {desired_sep_change}')
 print(f'Separation changes: {np.array(separations[-1,1:]) - initial_separations}')
+
+# Label the axes etc for errors plot
+errors_ax.set_xlabel("Time (sec)")
+errors_ax.set_ylabel("Control error (m)")
+errors_ax.set_title("Control error over time")
 
 # Label the axes etc for mission plot
 # mission_ax.set_box_aspect([1,1,1])
