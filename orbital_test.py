@@ -5,6 +5,7 @@
 # Import libraries
 from datetime import time
 from os import times
+import math
 from matplotlib import colors
 from matplotlib.animation import FuncAnimation
 import numpy as np
@@ -29,9 +30,9 @@ EARTH_RAD = 6371000 # m
 
 # Mission parameters
 INTER_SAT_DELAY = 1 * 60 # 1 minute
-TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.05 # 10% larger separation - should be achievable in one orbit
-STEPS_TO_RUN = 6000 # 556000 @ TS=0.01 = approx. one full orbit period. must be divisible by 10 due to progress bar (sim is done in 10 even steps) and 25 due to video
-TIMESTEP = 0.1 # 100 Hz for both simulator physics and controller
+TARGET_INTER_SAT_DELAY = INTER_SAT_DELAY * 1.0 # 10% larger separation - should be achievable in one orbit
+STEPS_TO_RUN = 6000000 # 556000 @ TS=0.01 = approx. one full orbit period. must be divisible by 10 due to progress bar (sim is done in 10 even steps) and 25 due to video
+TIMESTEP = 0.001 # 100 Hz for both simulator physics and controller
 
 # Video parameters
 VIDEO_LENGTH = 10 # sec
@@ -43,13 +44,13 @@ print(f'Steps to run: {STEPS_TO_RUN} @ timestep {TIMESTEP}\nInitial delay: {INTE
 # Define delay function
 def orbital_delay(iss_data, row, delay):
     '''Given a row in iss_data, find the row that corresponds to the given delay in seconds.'''
-    delayed_i = int(row+delay) % iss_data.shape[0]
+    delayed_i = math.ceil(row+delay) % iss_data.shape[0]
     return iss_data.iloc[delayed_i]
 
 def iss_position(iss_data, delay):
     '''Returns a callback for the properly formatted position on ISS orbit for a particular delay, parameterized by time.'''
     def callback(time):
-        d = orbital_delay(iss_data, int(time), delay)
+        d = orbital_delay(iss_data, math.ceil(time), delay)
         return np.array([
             d['I_position (m)'],
             d['J_position (m)'],
@@ -75,7 +76,7 @@ mac_mission_params = {
     'h':10000,
     'h_attractor':50000,
     'Re':20,
-    'a_max':0,
+    'a_max':3,
     'v_max':15,
     'M':1,
     'gamma':1,
@@ -83,9 +84,9 @@ mac_mission_params = {
     'inter_agent_w':1,
     'attractor_w':1,
     'obstacle_w':0,
-    'x_target_pos':0,
-    'y_target_pos':0,
-    'z_target_pos':0
+    'x_attractor':0,
+    'y_attractor':0,
+    'z_attractor':0
 }
 cosmos_compatible_mac_mission_params = {
     'sim_params':mac_mission_params
@@ -144,6 +145,7 @@ plt.style.use('dark_background')
 video_fig, video_ax = viz.set_up_3d_plot()
 # Set up plots figure
 plot_fig, plot_ax = viz.set_up_plot()
+errors_fig, errors_ax = viz.set_up_plot()
 
 # Plot Earth sphere
 #viz.plot_earth(orbit_ax)
@@ -201,7 +203,7 @@ def render_satellites(ax, timestep):
 def render_targets(ax, render_time):
     for i in range(5):
         target = iss_position(delay=-(4-i)*TARGET_INTER_SAT_DELAY, iss_data=data)(render_time)
-        ax.scatter(target[0], target[1], target[2], color=satellite_pt_colors[i], marker='x')
+        ax.scatter(target[0], target[1], target[2], color=satellite_pt_colors[i], marker='x', s=3)
 
 # Visualize swarm orbit data as video and export
 def animate(i):
@@ -234,6 +236,16 @@ for i in range(0, int(traj.shape[0]/5)):
     )
     separations[i,1:] = (dists[0,1], dists[1,2], dists[2,3], dists[3,4])
 
+# Calculate and plot control errors
+errors = np.zeros((int(traj.shape[0]/5), 6))
+for i in range(0, int(traj.shape[0]/5)):
+    errors[i,0] = i * TIMESTEP
+    errors[i,1:5] = np.linalg.norm(
+        np.array([iss_position(delay=-(4-j)*TARGET_INTER_SAT_DELAY, iss_data=data)(i * TIMESTEP) for j in range(5)]) \
+        -  sim_world.get_history()[i*5:(i*5)+5,worlds.pos[3]]
+    )
+    
+
 ##distances = distances[:, np.all(distances < (mac_mission_params['internode_distance']/0.5858), axis=0)]
 
 # Plot reference lines for separations plot
@@ -252,6 +264,10 @@ plot_ax.hlines(target_sep, 0, STEPS_TO_RUN*TIMESTEP, linestyles='dashdot')
 # Plot separations over time
 for i in range(4):
     plot_ax.plot(separations[:,0], separations[:,i+1])
+
+# Plot errors over time
+for i in range(4):
+    errors_ax.plot(errors[:,0], errors[:,i+1])
 
 # Make simple, bare axis lines through space:
 # xAxisLine = ((min(data['I_position (m)'])/10, max(data['I_position (m)'])/10), (0, 0), (0,0))

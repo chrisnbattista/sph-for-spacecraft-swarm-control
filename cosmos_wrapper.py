@@ -44,9 +44,9 @@ class SPHController:
         '''Returns forces to exert on controlled agent based on world state.'''
         s = world.get_state()
         p = self.attractor(s[0,worlds.time[3]])
-        self.params['sim_params']['x_target_pos'] = p[0]
-        self.params['sim_params']['y_target_pos'] = p[1]
-        self.params['sim_params']['z_target_pos'] = p[2]
+        self.params['sim_params']['x_attractor'] = p[0]
+        self.params['sim_params']['y_attractor'] = p[1]
+        self.params['sim_params']['z_attractor'] = p[2]
         cosmos_state = mak_to_cosmos_state(s, self.translation_table)
         modified_cosmos_state = json.loads(
             mac_python_script.mac_python(

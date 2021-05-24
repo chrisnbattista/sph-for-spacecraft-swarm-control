@@ -136,18 +136,29 @@ def F_fluid(i, sim_states, sim_params, computed_params):
 
 def F_attractor(i, sim_states, sim_params, computed_params):
 	"""Returns the force from the attractor (target) on agent i. Based on modification of reduced-density particle force from Song et al OE '17."""
-	displacement = np.array([[
-		sim_params['x_target_pos'] - sim_states[i]['x_pos'],
-		sim_params['y_target_pos'] - sim_states[i]['y_pos'],
-		sim_params['z_target_pos'] - sim_states[i]['z_pos'],
-	]])
-	r_iattractor = np.linalg.norm(displacement)
-	direction_itarget = normalize(displacement)
-	F = ( direction_itarget \
-		* ((computed_params['c_a']**2) / cubic_spline(r=0, h=sim_params['h_attractor'])) \
-		* d_cublic_spline_dr(r=r_iattractor, h=sim_params['h_attractor']) ) \
-		* computed_params['m'] # because per OE '17 F_i is per unit mass
-	return F
+	throwaway, rho_i, P_i = r_ijs_density_and_pressure(i, sim_states, sim_params, computed_params)
+	diff = np.array([
+									sim_params['x_attractor'] - sim_states[i]['x_pos'],
+									sim_params['y_attractor'] - sim_states[i]['y_pos'],
+									sim_params['z_attractor'] - sim_states[i]['z_pos'],
+			])
+	r_ij = np.linalg.norm(diff)
+	direction = normalize([diff])
+	rho_j = 0.5 * rho_i
+	P_j = 0.5 * P_i
+	# for particle in sim_states:
+	# 	r_jk = np.linalg.norm([
+	# 								sim_params['x_attractor'] - particle['x_pos'],
+	# 								sim_params['y_attractor'] - particle['y_pos'],
+	# 								sim_params['z_attractor'] - particle['z_pos'],
+	# 							])
+	# 	P_j += (computed_params['c_squared']**2) \
+	# 			* sim_params['rho_0'] \
+	# 			* ((2.0/3.0) * (quadratic(r=r_jk, h=sim_params['h']) / quadratic(r=0, h=sim_params['h'])) - (1.0/3.0))
+	F_mag = computed_params['m'] \
+				* ( (P_i / (rho_i**2)) + (P_j / (rho_j**2)) ) \
+				* d_cublic_spline_dr(r=r_ij, h=sim_params['h_attractor'])
+	return F_mag * direction / 10000
 
 # Define initial calculation of important constants
 def compute_derived_parameters(p):
@@ -185,7 +196,7 @@ def mac_python(node_name, sim_states, sim_params):
 	'''Computes the Multi-Agent Control (MAC) algorithm for one agent.
 
 	Expects sim_states to contain x,y,z positions and velocities for all agents.
-	Expects sim_params to contain: h, h_attractor, Re, a_max, v_max, x_target_pos, y_target_pos, z_target_pos.'''
+	Expects sim_params to contain: h, h_attractor, Re, a_max, v_max, x_attractor, y_attractor, z_attractor.'''
 
 	# Load data from JSON
 	p = json.loads(sim_params)['sim_params'] # @ Jim: adjusted per guidance
@@ -201,7 +212,7 @@ def mac_python(node_name, sim_states, sim_params):
 	# Calculate all pairwise force contributions
 	accel = np.zeros((1,3))
 	accel += p['inter_agent_w'] * F_fluid(me, s, p, computed_params)
-	a_F = p['attractor_w'] * p['a_max'] * F_attractor(me, s, p, computed_params)
+	a_F = p['attractor_w'] * F_attractor(me, s, p, computed_params)
 	accel += a_F
 
 	# Cap acceleration at physically reasonable value based on spacecraft capabilities.
@@ -267,9 +278,9 @@ if __name__ == '__main__':
 					'inter_agent_w':1,
 					'attractor_w':1,
 					'obstacle_w':1,
-					'x_target_pos':0, # should be target position in string of pearls (different per agent)
-					'y_target_pos':0, # should be target position in string of pearls (different per agent)
-					'z_target_pos':0 # should be target position in string of pearls (different per agent)
+					'x_attractor':0, # should be target position in string of pearls (different per agent)
+					'y_attractor':0, # should be target position in string of pearls (different per agent)
+					'z_attractor':0 # should be target position in string of pearls (different per agent)
 				}
 		}
 	)
